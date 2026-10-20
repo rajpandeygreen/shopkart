@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Login – ShopKart</title>
+<link rel="stylesheet" href="style.css?v=20261020d">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="logo" href="index.html"><span class="name">Shop<b>Kart</b></span><span class="tag">Explore <i>✦</i> Plus</span></a>
+    <form class="search" id="searchForm">
+      <input id="searchInput" type="text" placeholder="Search for Products, Brands and More" autocomplete="off">
+      <div class="suggest" id="suggestBox" role="listbox" aria-label="Search suggestions"></div>
+      <button type="submit" title="Search">🔍</button>
+    </form>
+    <nav class="nav-links"></nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="auth-wrap">
+    <aside class="auth-left">
+      <h2 id="authHead">Login</h2>
+      <p id="authSub">Get access to your Orders, Wishlist and Recommendations</p>
+      <div class="big">🛍️</div>
+    </aside>
+
+    <section class="auth-right">
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tabLogin" onclick="setMode('login')">Login</button>
+        <button class="auth-tab" id="tabSignup" onclick="setMode('signup')">Sign Up</button>
+      </div>
+
+      <div class="auth-alert" id="alert"></div>
+      <div class="auth-mode-note" id="modeNote" style="display:none"></div>
+
+      <form id="authForm" novalidate>
+        <div class="field" id="fName" style="display:none">
+          <label for="name">Full Name</label>
+          <input id="name" type="text" placeholder="Enter your full name" autocomplete="name">
+          <div class="err">Please enter at least 2 letters.</div>
+        </div>
+
+        <div class="field" id="fEmail">
+          <label for="email">Email / Username</label>
+          <input id="email" type="email" placeholder="example@email.com" autocomplete="email">
+          <div class="err">Please enter a valid email address.</div>
+        </div>
+
+        <div class="field" id="fPass">
+          <label for="password">Password</label>
+          <input id="password" type="password" placeholder="At least 6 characters" autocomplete="current-password">
+          <button type="button" class="eye" onclick="togglePass(this)" title="Show / hide password">👁️</button>
+          <div class="err">Password must be at least 6 characters long.</div>
+        </div>
+
+        <p class="auth-note">By continuing, you agree to ShopKart's <a href="#" onclick="return false">Terms of Use</a> and <a href="#" onclick="return false">Privacy Policy</a>.</p>
+
+        <button class="auth-submit" id="submitBtn" type="submit">Login</button>
+      </form>
+
+      <div class="auth-alt">
+        <span id="altText">New to ShopKart?</span>
+        <button id="altBtn" onclick="setMode(mode === 'login' ? 'signup' : 'login')">Create an account</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer style="margin-top:30px">
+  <div class="fbar" style="border-top:none">
+    <div class="who"><div><span class="lbl">© 2026 ShopKart.com</span><span class="val">Made in India 🇮🇳</span></div></div>
+    <div class="pay"><span>🔒 Secure login</span><span>💳 UPI</span><span>💰 COD</span></div>
+  </div>
+</footer>
+
+<script src="data.js?v=20261020d"></script>
+<script src="search.js?v=20261020d"></script>
+<script src="app.js?v=20261020d"></script>
+<script>
+let mode = "login";
+
+function nextUrl() {
+  const n = new URLSearchParams(location.search).get("next") || "";
+  // sirf apne hi pages allowed (open redirect se bachne ke liye)
+  return /^[a-z0-9_.-]+\.html(\?[a-z0-9_=&%.-]*)?$/i.test(n) ? n : "index.html";
+}
+
+function showAlert(msg, ok = false) {
+  const a = $("#alert");
+  a.textContent = msg;
+  a.classList.add("show");
+  a.classList.toggle("ok", ok);
+}
+function hideAlert() { $("#alert").classList.remove("show"); }
+
+function setMode(m) {
+  mode = m;
+  hideAlert();
+  const isSignup = m === "signup";
+  $("#fName").style.display = isSignup ? "block" : "none";
+  $("#tabLogin").classList.toggle("active", !isSignup);
+  $("#tabSignup").classList.toggle("active", isSignup);
+  $("#submitBtn").textContent = isSignup ? "Create Account" : "Login";
+  $("#authHead").textContent = isSignup ? "Looks like you're new here!" : "Login";
+  $("#authSub").textContent = isSignup
+    ? "Sign up with ShopKart to get started"
+    : "Get access to your Orders, Wishlist and Recommendations";
+  $("#altText").textContent = isSignup ? "Already have an account?" : "New to ShopKart?";
+  $("#altBtn").textContent = isSignup ? "Login" : "Create an account";
+  $("#password").setAttribute("autocomplete", isSignup ? "new-password" : "current-password");
+}
+
+function togglePass(btn) {
+  const inp = $("#password");
+  const show = inp.type === "password";
+  inp.type = show ? "text" : "password";
+  btn.textContent = show ? "🙈" : "👁️";
+}
+
+function validEmail(v) { return /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(v); }
+
+$("#authForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  hideAlert();
+
+  const name = $("#name").value.trim();
+  const email = $("#email").value.trim();
+  const pass = $("#password").value;
+
+  let bad = false;
+  $("#fName").classList.remove("bad");
+  $("#fEmail").classList.remove("bad");
+  $("#fPass").classList.remove("bad");
+
+  if (mode === "signup" && name.length < 2) { $("#fName").classList.add("bad"); bad = true; }
+  if (!validEmail(email)) { $("#fEmail").classList.add("bad"); bad = true; }
+  if (pass.length < 6) { $("#fPass").classList.add("bad"); bad = true; }
+  if (bad) return;
+
+  const btn = $("#submitBtn");
+  btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = "Please wait…";
+
+  try {
+    if (mode === "signup") {
+      await Auth.register(name, email, pass);
+      toast("Account created — welcome! 🎉");
+    } else {
+      await Auth.login(email, pass);
+      toast("Login successful!");
+    }
+    setTimeout(() => location.href = nextUrl(), 500);
+  } catch (err) {
+    showAlert(err.message || "Something went wrong. Please try again.");
+    btn.disabled = false;
+    btn.textContent = old;
+  }
+});
+
+/* ---------- init ---------- */
+(async function () {
+  setMode("login");
+  if (Auth.isLoggedIn()) {
+    showAlert("You are already logged in. Redirecting…", true);
+    setTimeout(() => location.href = nextUrl(), 700);
+    return;
+  }
+  await API.init();
+
+  if (!API.online) {
+    // demo mode: seed a demo account so login can be tried instantly
+    const users = Auth.demoUsers();
+    if (!users.length) {
+      users.push({ id: "u_demo", name: "Demo User", email: "demo@shopkart.com", pass: btoa(encodeURIComponent("demo123")) });
+      localStorage.setItem("shopkart_demo_users", JSON.stringify(users));
+    }
+    const note = $("#modeNote");
+    note.style.display = "block";
+    note.innerHTML = "⚡ <b>Demo mode</b> — the backend is not running, so your account is saved in this browser. Try: <b>demo@shopkart.com</b> / <b>demo123</b> (or create a new account).";
+  } else {
+    const note = $("#modeNote");
+    note.style.display = "block";
+    note.innerHTML = "✅ <b>Connected</b> — the Node.js backend is active, so your data is saved in the server database. Demo login: <b>demo@shopkart.com</b> / <b>demo123</b>";
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My Wishlist – ShopKart</title>
+<link rel="stylesheet" href="style.css?v=20261020d">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="logo" href="index.html"><span class="name">Shop<b>Kart</b></span><span class="tag">Explore <i>✦</i> Plus</span></a>
+    <form class="search" id="searchForm">
+      <input id="searchInput" type="text" placeholder="Search for Products, Brands and More" autocomplete="off">
+      <div class="suggest" id="suggestBox" role="listbox" aria-label="Search suggestions"></div>
+      <button type="submit" title="Search">🔍</button>
+    </form>
+    <nav class="nav-links">
+      <button class="btn-login hide-sm" onclick="location.href='login.html'">Login</button>
+      <a href="cart.html" title="Cart">🛒<span class="cart-badge" id="cartCount" style="display:none">0</span><span class="hide-sm"> Cart</span></a>
+      <a href="wishlist.html" title="Wishlist">❤️</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap" id="main"></main>
+
+<footer>
+  <div class="fcols">
+    <div class="fcol"><h4>ABOUT</h4><a href="#">Contact Us</a><a href="#">About Us</a><a href="#">Careers</a></div>
+    <div class="fcol"><h4>HELP</h4><a href="#">Payments</a><a href="#">Shipping</a><a href="#">FAQ</a></div>
+    <div class="fcol"><h4>POLICY</h4><a href="#">Return Policy</a><a href="#">Terms of Use</a><a href="#">Privacy</a></div>
+    <div class="fcol"><h4>Mail Us:</h4><p>ShopKart Internet Pvt Ltd,<br>Bengaluru, KA 560103</p></div>
+  </div>
+  <div class="fbar"><div class="who"><div><span class="lbl">© 2026 ShopKart.com</span><span class="val">Made in India 🇮🇳</span></div></div>
+    <div class="pay"><span>💳 Cards</span><span>📱 UPI</span><span>💰 COD</span></div></div>
+</footer>
+
+<script src="data.js?v=20261020d"></script>
+<script src="search.js?v=20261020d"></script>
+<script src="app.js?v=20261020d"></script>
+<script>
+function render() {
+  const items = Store.wish().map(getProduct).filter(Boolean);
+  if (!items.length) {
+    $("#main").innerHTML = `
+      <div class="section empty">
+        <div class="ic">💔</div>
+        <h2>Your wishlist is empty</h2>
+        <p>Tap the ♡ on any product card to save your favourites.</p>
+        <a class="btn-blue" href="index.html">Explore Products</a>
+      </div>`;
+    return;
+  }
+  $("#main").innerHTML = `
+    <div class="section">
+      <div class="sec-head"><div><h2>My Wishlist (${items.length})</h2><div class="sub">Items saved for later</div></div></div>
+      <div class="grid wide" id="wgrid"></div>
+    </div>`;
+  $("#wgrid").innerHTML = items.map(p => `
+    <div class="pcard" data-id="${p.id}" onclick="location.href='product.html?id=${p.id}'">
+      <div class="pimg" style="background:${p.grad}">
+        <span class="fallback">${p.emoji}</span>
+        ${imgTag(p, 500)}
+        <button class="wish on" onclick="event.stopPropagation();unwish('${p.id}')">❤️</button>
+      </div>
+      <div class="pname">${esc(p.title)}</div>
+      <div class="rating-row"><span class="rating-badge">${p.rating} ★</span>
+        <span class="rating-count">(${p.ratings.toLocaleString("en-IN")})</span></div>
+      <div class="price-row"><span class="price">${inr(p.price)}</span>
+        <span class="mrp">${inr(p.mrp)}</span><span class="off">${discount(p)}% off</span></div>
+      <button class="quick-add" style="opacity:1" onclick="event.stopPropagation();addFromWish('${p.id}')">Add to Cart</button>
+    </div>`).join("");
+}
+
+function unwish(id) { Store.toggleWish(id); toast("Removed from wishlist"); render(); }
+function addFromWish(id) { Store.addToCart(id); toast("Added to cart", "Go to Cart", () => location.href = "cart.html"); }
+
+render();
+</script>
+</body>
+</html>

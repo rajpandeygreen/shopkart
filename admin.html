@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Panel – ShopKart</title>
+<link rel="stylesheet" href="style.css?v=20261020d">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="logo" href="index.html"><span class="name">Shop<b>Kart</b></span><span class="tag">Admin Panel</span></a>
+    <form class="search" id="searchForm">
+      <input id="searchInput" type="text" placeholder="Search products, orders, sellers" autocomplete="off">
+      <div class="suggest" id="suggestBox" role="listbox" aria-label="Search suggestions"></div>
+      <button type="submit" title="Search">🔍</button>
+    </form>
+    <nav class="nav-links"></nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="page-title">
+    <h1>🛡️ Admin Panel</h1>
+    <p id="adminSub">Manage products, orders, sellers and customers</p>
+  </div>
+  <div id="adminBody"></div>
+</main>
+
+<footer id="siteFooter"></footer>
+<div class="overlay" id="overlay"></div>
+
+<script src="data.js?v=20261020d"></script>
+<script src="search.js?v=20261020d"></script>
+<script src="app.js?v=20261020d"></script>
+<script>
+let ADMIN = null;      // logged in admin user
+let TAB = "dashboard";
+let ORDER_FILTER = "";
+let PRODUCT_FILTER = "";
+let DATA = { products: [], sellers: [], customers: [], orders: [], stats: null, requests: [] };
+
+/* ---------- AUTH GATE ---------- */
+(async function start() {
+  $("#adminBody").innerHTML = `<div class="section" style="padding:40px;text-align:center;color:#878787">Checking your access…</div>`;
+  await API.init();
+
+  if (!Auth.isLoggedIn()) {
+    location.href = "login.html?next=" + encodeURIComponent("admin.html");
+    return;
+  }
+  const u = Auth.user();
+  if (!u.isAdmin) {
+    // demo mode: allow the built-in admin account only
+    $("#adminBody").innerHTML = `
+      <div class="section empty">
+        <div class="ic">🔒</div>
+        <h2>Admin access required</h2>
+        <p>Please log in with the admin account to open this panel.</p>
+        <div class="order-id" style="display:inline-block">admin@shopkart.com / admin123</div>
+        <div><button class="btn-blue" onclick="switchToAdmin()">Log in as Admin</button></div>
+      </div>`;
+    return;
+  }
+  if (!API.online) {
+    $("#adminBody").innerHTML = `
+      <div class="section empty">
+        <div class="ic">🔌</div>
+        <h2>Server is not running</h2>
+        <p>The admin panel needs the Node.js server. Please start it and refresh.</p>
+        <div class="order-id" style="display:inline-block">node server.js</div>
+        <div><a class="btn-blue" href="index.html">Back to Home</a></div>
+      </div>`;
+    return;
+  }
+  ADMIN = u;
+  loadDashboard();
+})();
+
+function switchToAdmin() {
+  localStorage.removeItem("shopkart_token");
+  localStorage.removeItem("shopkart_user");
+  location.href = "login.html?next=" + encodeURIComponent("admin.html");
+}
+
+/* ---------- DATA LOADING ---------- */
+async function api(path, method = "GET", body) {
+  try { return await API.req(method, path, body); }
+  catch (e) { toast(e.message); throw e; }
+}
+
+async function loadDashboard() {
+  try {
+    const [stats, products, sellers, customers, orders] = await Promise.all([
+      api("/api/admin/stats"),
+      api("/api/admin/products"),
+      api("/api/admin/sellers"),
+      api("/api/admin/customers"),
+      api("/api/admin/orders"),
+    ]);
+    DATA.stats = stats;
+    DATA.products = products.products;
+    DATA.sellers = sellers.sellers;
+    DATA.requests = sellers.requests || [];
+    DATA.customers = customers.customers;
+    DATA.orders = orders.orders;
+  } catch { return; }
+  renderPanel();
+}
+
+async function refreshOrders() {
+  try {
+    const d = await api("/api/admin/orders" + (ORDER_FILTER ? "?status=" + encodeURIComponent(ORDER_FILTER) : ""));
+    DATA.orders = d.orders;
+    renderPanel();
+  } catch {}
+}
+
+function renderPanel() {
+  $("#adminSub").textContent = `Welcome ${ADMIN.name} • ShopKart marketplace control centre`;
+  $("#adminBody").innerHTML = `
+    <div class="panel">
+      <aside class="side-nav">
+        <div class="sn-head"><b>ShopKart Admin</b><span>${esc(ADMIN.email)}</span></div>
+        <a class="${TAB === "dashboard" ? "active" : ""}" onclick="go('dashboard')">📊 Dashboard</a>
+        <a class="${TAB === "orders" ? "active" : ""}" onclick="go('orders')">📦 Orders</a>
+        <a class="${TAB === "products" ? "active" : ""}" onclick="go('products')">🏷️ Products</a>
+        <a class="${TAB === "sellers" ? "active" : ""}" onclick="go('sellers')">🏪 Sellers ${DATA.requests.filter(r => r.status === "Pending").length ? `<span class="badge-warn" style="margin-left:auto">${DATA.requests.filter(r => r.status === "Pending").length}</span>` : ""}</a>
+        <a class="${TAB === "customers" ? "active" : ""}" onclick="go('customers')">👥 Customers</a>
+        <a class="${TAB === "settings" ? "active" : ""}" onclick="go('settings')">⚙️ Settings</a>
+      </aside>
+      <section id="tabContent"></section>
+    </div>`;
+
+  const views = {
+    dashboard: viewDashboard, orders: viewOrders, products: viewProducts,
+    sellers: viewSellers, customers: viewCustomers, settings: viewSettings,
+  };
+  views[TAB]();
+}
+
+function go(tab) {
+  TAB = tab;
+  renderPanel();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+/* ---------- DASHBOARD ---------- */
+function viewDashboard() {
+  const k = DATA.stats.kpis;
+  const catRows = Object.entries(DATA.stats.byCategory).sort((a, b) => b[1] - a[1]);
+  const maxCat = Math.max(1, ...catRows.map(r => r[1]));
+  const pay = DATA.stats.paymentSplit;
+  const totalPay = Math.max(1, pay.cod + pay.online);
+  const catName = id => (CATEGORIES.find(c => c.id === id) || { name: id, emoji: "📦" }).name;
+  const catEmoji = id => (CATEGORIES.find(c => c.id === id) || { emoji: "📦" }).emoji;
+
+  $("#tabContent").innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><span class="ki" style="background:#e8f0ff">💰</span>
+        <div><b>${inr(k.revenue)}</b><span>Total Sales</span><small>+${inr(k.commission)} commission</small></div></div>
+      <div class="kpi"><span class="ki" style="background:#e6f4ea">📦</span>
+        <div><b>${k.orders}</b><span>Total Orders</span><small>${k.unitsSold} units sold</small></div></div>
+      <div class="kpi"><span class="ki" style="background:#fff7e0">🛍️</span>
+        <div><b>${k.products}</b><span>Products</span><small>${k.lowStock} low stock</small></div></div>
+      <div class="kpi"><span class="ki" style="background:#f3e5f5">🏪</span>
+        <div><b>${k.sellers}</b><span>Seller Partners</span><small>${k.pendingSellers} pending approval</small></div></div>
+      <div class="kpi"><span class="ki" style="background:#e1f5fe">👥</span>
+        <div><b>${k.customers}</b><span>Customers</span><small>Avg order ${inr(k.avgOrder)}</small></div></div>
+      <div class="kpi"><span class="ki" style="background:#fdecea">⚠️</span>
+        <div><b>${k.outOfStock}</b><span>Out of Stock</span><small>needs attention</small></div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" class="dash-2">
+      <div class="panel-card">
+        <div class="sec-head" style="padding:14px 18px"><div><h2 style="font-size:16px">Category-wise Sales</h2></div></div>
+        <div class="panel-body">
+          ${catRows.length ? catRows.map(([id, amount]) => `
+            <div style="margin-bottom:12px">
+              <div style="display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:5px">
+                <span>${catEmoji(id)} ${catName(id)}</span><b>${inr(amount)}</b>
+              </div>
+              <div class="bar-track"><i style="width:${Math.round(amount / maxCat * 100)}%"></i></div>
+            </div>`).join("") : `<div class="empty-state"><div class="ic">📊</div><h3>No sales yet</h3><p>Sales data will appear here once orders come in.</p></div>`}
+        </div>
+      </div>
+
+      <div class="panel-card">
+        <div class="sec-head" style="padding:14px 18px"><div><h2 style="font-size:16px">Payment Split</h2></div></div>
+        <div class="panel-body">
+          <div style="margin-bottom:14px">
+            <div style="display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:5px">
+              <span>💵 Cash on Delivery</span><b>${inr(pay.cod)} (${Math.round(pay.cod / totalPay * 100)}%)</b>
+            </div>
+            <div class="bar-track"><i style="width:${Math.round(pay.cod / totalPay * 100)}%;background:#388e3c"></i></div>
+          </div>
+          <div style="margin-bottom:18px">
+            <div style="display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:5px">
+              <span>💳 Online Payment</span><b>${inr(pay.online)} (${Math.round(pay.online / totalPay * 100)}%)</b>
+            </div>
+            <div class="bar-track"><i style="width:${Math.round(pay.online / totalPay * 100)}%;background:#2874f0"></i></div>
+          </div>
+          <h3 style="font-size:13px;text-transform:uppercase;color:#878787;margin-bottom:10px">Orders by Status</h3>
+          ${Object.entries(DATA.stats.statusCount).map(([s, n]) => `
+            <div class="prof-row"><span>${statusPill(s)}</span><b>${n}</b></div>`).join("") || "<p style='color:#878787'>No orders yet</p>"}
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-card">
+      <div class="sec-head" style="padding:14px 18px">
+        <div><h2 style="font-size:16px">Recent Orders</h2></div>
+        <button class="btn-sm" onclick="go('orders')">View all →</button>
+      </div>
+      <div class="tbl-wrap">
+        <table class="data">
+          <thead><tr><th>Order ID</th><th>Customer</th><th>Items</th><th>Payment</th><th>Status</th><th style="text-align:right">Amount</th></tr></thead>
+          <tbody>
+            ${DATA.orders.slice(0, 6).map(o => `
+              <tr>
+                <td><b>${esc(o.id)}</b><div style="font-size:12px;color:#878787">${orderDate(o)}</div></td>
+                <td>${esc(o.customer || "—")}</td>
+                <td>${orderItemCount(o)}</td>
+                <td>${o.payment === "cod" ? "💵 COD" : "💳 Online"}</td>
+                <td>${statusPill(o.status)}</td>
+                <td class="num">${inr(o.total)}</td>
+              </tr>`).join("") || `<tr><td colspan="6" class="empty-state">No orders yet</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <style>@media(max-width:900px){.dash-2{grid-template-columns:1fr !important}}</style>`;
+}
+
+/* ---------- ORDERS ---------- */
+function viewOrders() {
+  const list = ORDER_FILTER ? DATA.orders.filter(o => o.status === ORDER_FILTER) : DATA.orders;
+
+  $("#tabContent").innerHTML = `
+    <div class="panel-card">
+      <div class="sec-head" style="padding:16px 20px">
+        <div><h2 style="font-size:17px">All Orders</h2><div class="sub">${list.length} order(s) shown</div></div>
+        <button class="btn-sm" onclick="refreshOrders()">🔄 Refresh</button>
+      </div>
+      <div class="filter-row">
+        <select onchange="ORDER_FILTER=this.value;refreshOrders()">
+          <option value="">All statuses</option>
+          ${["Confirmed", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"].map(s =>
+            `<option value="${s}" ${ORDER_FILTER === s ? "selected" : ""}>${s}</option>`).join("")}
+        </select>
+      </div>
+      <div class="tbl-wrap">
+        <table class="data">
+          <thead><tr><th>Order</th><th>Customer</th><th>Items</th><th>Payment</th><th style="text-align:right">Amount</th><th>Status</th><th>Update</th></tr></thead>
+          <tbody>
+            ${list.map(o => `
+              <tr>
+                <td><b>${esc(o.id)}</b><div style="font-size:12px;color:#878787">${orderDate(o)}</div></td>
+                <td>${esc(o.customer || "—")}<div style="font-size:12px;color:#878787">${esc((o.address && o.address.city) || "")}</div></td>
+                <td>${orderItemCount(o)}
+                  <div style="font-size:12px;color:#878787">${(o.items || []).slice(0, 2).map(i => esc(String(i.title).slice(0, 22))).join(", ")}</div></td>
+                <td>${o.payment === "cod" ? '<span class="badge-warn">💵 COD</span>' : '<span class="badge-ok">💳 Paid</span>'}</td>
+                <td class="num">${inr(o.total)}</td>
+                <td>${statusPill(o.status)}</td>
+                <td>
+                  <select class="status-sel" onchange="setOrderStatus('${esc(o.id)}', this.value, this)">
+                    ${["Confirmed", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"].map(s =>
+                      `<option value="${s}" ${o.status === s ? "selected" : ""}>${s}</option>`).join("")}
+                  </select>
+                </td>
+              </tr>`).join("") || `<tr><td colspan="7" class="empty-state"><div class="ic">📦</div><h3>No orders found</h3></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+async function setOrderStatus(id, status, el) {
+  el.disabled = true;
+  try {
+    await api("/api/admin/order-status", "POST", { id, status });
+    const o = DATA.orders.find(x => x.id === id);
+    if (o) o.status = status;
+    toast(`Order ${id} is now "${status}"`);
+    renderPanel();
+  } catch { el.disabled = false; }
+}
+
+/* ---------- PRODUCTS ---------- */
+function viewProducts() {
+  const q = PRODUCT_FILTER.toLowerCase().trim();
+  const list = DATA.products.filter(p =>
+    !q || [p.title, p.brand, sellerOf(p).name].join(" ").toLowerCase().includes(q));
+
+  $("#tabContent").innerHTML = `
+    <div class="panel-card">
+      <div class="sec-head" style="padding:16px 20px">
+        <div><h2 style="font-size:17px">Product Catalogue</h2><div class="sub">${list.length} of ${DATA.products.length} products</div></div>
+      </div>
+      <div class="filter-row">
+        <input placeholder="Search product, brand or seller…" value="${esc(PRODUCT_FILTER)}"
+               oninput="PRODUCT_FILTER=this.value;viewProducts()">
+      </div>
+      <div class="tbl-wrap">
+        <table class="data" style="min-width:860px">
+          <thead><tr><th>Product</th><th>Seller</th><th style="text-align:right">Price</th><th style="text-align:right">Stock</th><th style="text-align:right">Your Commission</th><th>Action</th></tr></thead>
+          <tbody>
+            ${list.map(p => {
+              const s = sellerOf(p);
+              return `<tr>
+                <td><div class="td-prod">
+                  <div class="mini-thumb" style="background:${p.grad}"><span>${p.emoji}</span>${imgTag(p, 150)}</div>
+                  <div><b>${esc(p.title)}</b><span>${esc(p.brand)} • ${esc(p.category)}</span></div>
+                </div></td>
+                <td>${esc(s.name)}<div style="font-size:12px;color:#878787">${s.commission}% commission</div></td>
+                <td class="num">${inr(p.price)}
+                  <div style="font-size:12px;color:#388e3c;font-weight:500">${discount(p)}% off</div></td>
+                <td class="num">${p.stock}
+                  <div style="font-size:12px">${p.stock === 0 ? '<span class="badge-off">Out of stock</span>' : p.stock <= 20 ? '<span class="badge-warn">Low stock</span>' : '<span class="badge-ok">In stock</span>'}</div></td>
+                <td class="num">${inr(adminCommission(p))}</td>
+                <td><button class="btn-sm primary" onclick="editProduct('${p.id}')">Edit</button>
+                    <a class="btn-sm" href="product.html?id=${p.id}" target="_blank">View</a></td>
+              </tr>`;
+            }).join("") || `<tr><td colspan="6" class="empty-state"><div class="ic">🔍</div><h3>No products found</h3></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+async function editProduct(id) {
+  const p = DATA.products.find(x => x.id === id);
+  if (!p) return;
+  $("#overlay").classList.add("show");
+  $("#overlay").innerHTML = `
+    <div class="modal" style="text-align:left">
+      <h2 style="text-align:center">Edit Product</h2>
+      <div style="display:flex;gap:12px;align-items:center;margin:14px 0;background:#f7f9fc;padding:12px;border-radius:4px">
+        <div class="mini-thumb" style="background:${p.grad};width:52px;height:52px"><span>${p.emoji}</span></div>
+        <div style="font-size:13.5px"><b>${esc(p.title.slice(0, 60))}</b><div style="color:#878787">MRP ${inr(p.mrp)} • ${esc(p.brand)}</div></div>
+      </div>
+      <div class="field"><label>Product Name</label><input id="eTitle" value="${esc(p.title)}"></div>
+      <div class="field-grid">
+        <div class="field"><label>Selling Price (₹)</label><input id="ePrice" type="number" min="1" max="${p.mrp}" value="${p.price}"></div>
+        <div class="field"><label>Stock Quantity</label><input id="eStock" type="number" min="0" value="${p.stock}"></div>
+      </div>
+      <div class="field"><label>Seller</label>
+        <select id="eSeller" style="width:100%;border:1px solid #d9d9d9;border-radius:3px;padding:11px 13px;font-size:14.5px">
+          ${SELLERS.map(s => `<option value="${s.id}" ${p.seller === s.id ? "selected" : ""}>${esc(s.name)} (${s.commission}%)</option>`).join("")}
+        </select>
+      </div>
+      <div class="field"><label><input type="checkbox" id="eAssured" ${p.assured ? "checked" : ""} style="width:auto;margin-right:8px">ShopKart Assured</label></div>
+      <div class="cod-note">MRP is ${inr(p.mrp)}. Selling price cannot be higher than MRP.</div>
+      <div class="acts">
+        <button class="btn-blue" style="flex:1;background:#fff;color:#2874f0;border:1px solid #2874f0" onclick="closeOverlay3()">Cancel</button>
+        <button class="btn-blue" style="flex:1" onclick="saveProduct('${p.id}')">Save Changes</button>
+      </div>
+    </div>`;
+}
+function closeOverlay3() { $("#overlay").classList.remove("show"); }
+
+async function saveProduct(id) {
+  const body = {
+    id,
+    title: $("#eTitle").value,
+    price: $("#ePrice").value,
+    stock: $("#eStock").value,
+    seller: $("#eSeller").value,
+    assured: $("#eAssured").checked,
+  };
+  try {
+    const d = await api("/api/admin/product", "PUT", body);
+    const i = DATA.products.findIndex(x => x.id === id);
+    if (i > -1) DATA.products[i] = d.product;
+    closeOverlay3();
+    toast("Product updated successfully");
+    renderPanel();
+  } catch {}
+}
+
+/* ---------- SELLERS ---------- */
+function viewSellers() {
+  $("#tabContent").innerHTML = `
+    ${DATA.requests.length ? `
+    <div class="panel-card">
+      <div class="sec-head" style="padding:16px 20px">
+        <div><h2 style="font-size:17px">Seller Applications</h2><div class="sub">Approve or reject new partner requests</div></div>
+      </div>
+      <div class="tbl-wrap">
+        <table class="data">
+          <thead><tr><th>Business</th><th>Contact</th><th>City</th><th>GSTIN</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody>
+            ${DATA.requests.map(r => `
+              <tr>
+                <td><b>${esc(r.business)}</b><div style="font-size:12px;color:#878787">${esc(r.name)} • ${esc(r.category || "General")}</div></td>
+                <td>${esc(r.email)}<div style="font-size:12px;color:#878787">${esc(r.phone)}</div></td>
+                <td>${esc(r.city || "—")}</td>
+                <td style="font-size:12px">${esc(r.gstin || "—")}</td>
+                <td>${r.status === "Pending" ? '<span class="badge-warn">Pending</span>' : r.status === "Approved" ? '<span class="badge-ok">Approved</span>' : '<span class="badge-off">Rejected</span>'}</td>
+                <td>${r.status === "Pending" ? `
+                  <button class="btn-sm green" onclick="decideSeller('${r.id}','approve')">Approve</button>
+                  <button class="btn-sm danger" onclick="decideSeller('${r.id}','reject')">Reject</button>` : "—"}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>` : ""}
+
+    <div class="panel-card">
+      <div class="sec-head" style="padding:16px 20px">
+        <div><h2 style="font-size:17px">Seller Partners</h2><div class="sub">${DATA.sellers.length} active sellers on ShopKart</div></div>
+      </div>
+      <div class="tbl-wrap">
+        <table class="data" style="min-width:820px">
+          <thead><tr><th>Seller</th><th>City</th><th style="text-align:right">Products</th><th style="text-align:right">Units Sold</th><th style="text-align:right">Sales</th><th style="text-align:right">Commission</th><th>Rating</th></tr></thead>
+          <tbody>
+            ${DATA.sellers.map(s => `
+              <tr>
+                <td><div class="td-prod">
+                  <div class="mini-thumb" style="background:#f5f8ff">${s.logo}</div>
+                  <div><b>${esc(s.name)}</b><span>${esc(s.gstin)} • since ${s.since}</span></div>
+                </div></td>
+                <td>${esc(s.city)}</td>
+                <td class="num">${s.products}</td>
+                <td class="num">${s.unitsSold}</td>
+                <td class="num">${inr(s.sales)}</td>
+                <td class="num">${inr(s.commission)}<div style="font-size:12px;color:#878787;font-weight:400">${s.commission}% rate</div></td>
+                <td><span class="star-mini">${stars(s.rating)}</span><div style="font-size:12px;color:#878787">${s.rating} / 5</div></td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel-card">
+      <div class="sec-head" style="padding:16px 20px"><div><h2 style="font-size:17px">Seller Health</h2><div class="sub">Return rate and delivery speed</div></div></div>
+      <div class="tbl-wrap">
+        <table class="data">
+          <thead><tr><th>Seller</th><th>Dispatch Time</th><th>Return Rate</th><th>Health</th></tr></thead>
+          <tbody>
+            ${DATA.sellers.map(s => `
+              <tr>
+                <td>${esc(s.name)}</td>
+                <td>${s.shipDays} day(s)</td>
+                <td>${s.returnRate}%</td>
+                <td>${s.returnRate <= 3
+                  ? '<span class="badge-ok">Good</span>'
+                  : s.returnRate <= 6 ? '<span class="badge-warn">Average</span>' : '<span class="badge-off">Needs Attention</span>'}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+async function decideSeller(id, action) {
+  try {
+    await api("/api/admin/seller-request", "POST", { id, action });
+    toast(action === "approve" ? "Seller approved and added to the marketplace" : "Application rejected");
+    loadDashboard();
+  } catch {}
+}
+
+/* ---------- CUSTOMERS ---------- */
+function viewCustomers() {
+  const roleLabel = r => r === "admin" ? '<span class="badge-warn">Admin</span>'
+    : r === "seller" ? '<span class="badge-ok">Seller</span>' : "Customer";
+  $("#tabContent").innerHTML = `
+    <div class="panel-card">
+      <div class="sec-head" style="padding:16px 20px">
+        <div><h2 style="font-size:17px">All Users</h2><div class="sub">${DATA.customers.length} accounts registered</div></div>
+      </div>
+      <div class="tbl-wrap">
+        <table class="data">
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th style="text-align:right">Orders</th><th style="text-align:right">Total Spent</th><th>Joined</th></tr></thead>
+          <tbody>
+            ${DATA.customers.map(u => `
+              <tr>
+                <td><b>${esc(u.name)}</b>${u.sellerId ? `<div style="font-size:12px;color:#878787">${esc((getSeller(u.sellerId) || {}).name || u.sellerId)}</div>` : ""}</td>
+                <td>${esc(u.email)}</td>
+                <td>${roleLabel(u.role)}</td>
+                <td class="num">${u.orders}</td>
+                <td class="num">${inr(u.spent)}</td>
+                <td style="font-size:12.5px;color:#878787">${u.createdAt ? new Date(u.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+/* ---------- SETTINGS ---------- */
+function viewSettings() {
+  const codOn = COD.enabled();
+  const codOrders = DATA.orders.filter(o => o.payment === "cod").length;
+  const totalOrders = DATA.orders.length;
+
+  $("#tabContent").innerHTML = `
+    <div class="panel-card">
+      <div class="sec-head" style="padding:16px 20px"><div><h2 style="font-size:17px">Cash on Delivery</h2>
+        <div class="sub">Control COD for the whole marketplace</div></div>
+        <span class="${codOn ? "badge-ok" : "badge-off"}">${codOn ? "Enabled" : "Disabled"}</span>
+      </div>
+      <div class="panel-body">
+        <div class="prof-row"><span>Status</span><b>${codOn ? "Customers can choose COD" : "COD is hidden at checkout"}</b></div>
+        <div class="prof-row"><span>Maximum order value</span><b>${inr(COD.LIMIT)}</b></div>
+        <div class="prof-row"><span>Handling fee</span><b>${inr(COD.FEE)} (free above ${inr(COD.FREE_ABOVE)})</b></div>
+        <div class="prof-row"><span>COD orders placed</span><b>${codOrders} of ${totalOrders}</b></div>
+        <div style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap">
+          <button class="btn-sm ${codOn ? "danger" : "green"}" onclick="toggleCod()">
+            ${codOn ? "Turn OFF Cash on Delivery" : "Turn ON Cash on Delivery"}
+          </button>
+        </div>
+        <div class="cod-note">This setting is saved in this browser for the demo. In the live server it would be a global setting.</div>
+      </div>
+    </div>
+
+    <div class="panel-card">
+      <div class="sec-head" style="padding:16px 20px"><div><h2 style="font-size:17px">Marketplace Summary</h2>
+        <div class="sub">Overall health of the shop</div></div></div>
+      <div class="panel-body">
+        <div class="prof-row"><span>Total sales</span><b>${inr(DATA.stats.kpis.revenue)}</b></div>
+        <div class="prof-row"><span>ShopKart commission earned</span><b>${inr(DATA.stats.kpis.commission)}</b></div>
+        <div class="prof-row"><span>Average order value</span><b>${inr(DATA.stats.kpis.avgOrder)}</b></div>
+        <div class="prof-row"><span>Products out of stock</span><b>${DATA.stats.kpis.outOfStock}</b></div>
+        <div class="prof-row"><span>Pending seller applications</span><b>${DATA.stats.kpis.pendingSellers}</b></div>
+      </div>
+    </div>`;
+}
+
+function toggleCod() {
+  COD.set(!COD.enabled());
+  toast(COD.enabled() ? "Cash on Delivery is now ON" : "Cash on Delivery is now OFF");
+  renderPanel();
+}
+</script>
+</body>
+</html>

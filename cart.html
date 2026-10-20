@@ -1,0 +1,421 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My Cart – ShopKart</title>
+<link rel="stylesheet" href="style.css?v=20261020d">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="logo" href="index.html"><span class="name">Shop<b>Kart</b></span><span class="tag">Explore <i>✦</i> Plus</span></a>
+    <form class="search" id="searchForm">
+      <input id="searchInput" type="text" placeholder="Search for products, brands and more" autocomplete="off">
+      <div class="suggest" id="suggestBox" role="listbox" aria-label="Search suggestions"></div>
+      <button type="submit" title="Search">🔍</button>
+    </form>
+    <nav class="nav-links"></nav>
+  </div>
+</header>
+
+<main class="wrap" id="main"></main>
+<footer id="siteFooter"></footer>
+
+<div class="overlay" id="overlay"></div>
+
+<script src="data.js?v=20261020d"></script>
+<script src="search.js?v=20261020d"></script>
+<script src="app.js?v=20261020d"></script>
+<script>
+let appliedCoupon = null;
+
+/* ---------- PRICE CALCULATION ---------- */
+function totals(useCod) {
+  const lines = Store.cart().map(l => ({ ...l, p: getProduct(l.id) })).filter(l => l.p);
+  const mrpTotal = lines.reduce((s, l) => s + l.p.mrp * l.qty, 0);
+  const subTotal = lines.reduce((s, l) => s + l.p.price * l.qty, 0);
+  const productDiscount = mrpTotal - subTotal;
+
+  let couponOff = 0;
+  if (appliedCoupon) {
+    const c = COUPONS[appliedCoupon];
+    if (c && subTotal >= c.min) {
+      couponOff = c.type === "flat" ? c.value : Math.min(Math.round(subTotal * c.value / 100), c.max);
+    }
+  }
+
+  const platform = subTotal > 0 ? 49 : 0;
+  const codOn = !!useCod && COD.available(subTotal);
+  const codFee = codOn ? COD.feeFor(subTotal) : 0;
+  const grand = Math.max(0, subTotal - couponOff + platform + codFee);
+
+  return { lines, mrpTotal, subTotal, productDiscount, couponOff, platform, codFee, codOn, grand, saved: mrpTotal - grand };
+}
+
+/* ---------- RENDER ---------- */
+function render() {
+  const t = totals(Checkout.get().method === "cod");
+
+  if (!t.lines.length) {
+    $("#main").innerHTML = `
+      <div class="section empty">
+        <div class="ic">🛒</div>
+        <h2>Your cart is empty</h2>
+        <p>Add some products and come back to place your order.</p>
+        <a class="btn-blue" href="index.html">Start Shopping</a>
+      </div>
+      ${ordersBlock()}`;
+    updateCartBadge();
+    return;
+  }
+
+  $("#main").innerHTML = `
+    <div class="cart-grid">
+      <div>
+        <div class="cart-items">
+          <div class="sec-head">
+            <div><h2>My Cart (${t.lines.length})</h2>
+              <div class="sub">Delivering to: <b>110001, Delhi</b></div></div>
+            <div class="deal-timer" id="dealTimer"></div>
+          </div>
+          ${t.lines.map(cartItemHTML).join("")}
+        </div>
+
+        ${addressBox()}
+
+        <div class="cart-items" style="margin-top:16px">
+          <div class="sec-head"><div><h2>Payment Method</h2>
+            <div class="sub">Choose how you want to pay</div></div></div>
+          <div class="panel-body">${paymentBox(t)}</div>
+        </div>
+      </div>
+
+      <aside class="side">
+        <div class="price-box">
+          <h3>Price Details</h3>
+          <div class="pline"><span>Price (${t.lines.reduce((s, l) => s + l.qty, 0)} items)</span><span>${inr(t.mrpTotal)}</span></div>
+          <div class="pline"><span>Product Discount</span><span class="free">− ${inr(t.productDiscount)}</span></div>
+          <div class="pline"><span>Coupon Discount</span><span class="${t.couponOff ? "free" : "muted"}">${t.couponOff ? "− " + inr(t.couponOff) : "Apply a coupon"}</span></div>
+          <div class="pline"><span>Platform Fee</span><span>${inr(t.platform)}</span></div>
+          ${t.codOn ? `<div class="pline"><span>COD Handling Fee</span><span>${t.codFee ? inr(t.codFee) : '<span class="free">FREE</span>'}</span></div>` : ""}
+          <div class="pline"><span>Delivery Charges</span><span class="free">FREE</span></div>
+          <div class="total"><span>Total Payable</span><span>${inr(t.grand)}</span></div>
+          ${t.codOn ? `<div style="font-size:12.5px;color:#8a5a00;background:#fff7e0;border-radius:3px;padding:9px 11px;margin-top:12px">💵 Pay ${inr(t.grand)} in cash when the order is delivered.</div>` : ""}
+          <div class="save-note">🎉 You save ${inr(t.saved)} on this order!</div>
+        </div>
+
+        <div class="price-box">
+          <h3 style="border:none;padding-bottom:6px">Coupons for you</h3>
+          <div class="coupon-box">
+            <input id="couponInput" placeholder="Enter coupon code" value="${appliedCoupon || ""}">
+            <button onclick="applyCoupon()">APPLY</button>
+          </div>
+          <p style="font-size:12px;color:#878787;margin-top:10px">Try: SHOP10 • FLAT500 • NEW20</p>
+          ${appliedCoupon ? `<div class="coupon-applied">✓ ${appliedCoupon} applied — ${COUPONS[appliedCoupon].label}<button onclick="removeCoupon()">✕</button></div>` : ""}
+        </div>
+
+        <div class="price-box">
+          <h3 style="border:none;padding-bottom:6px">🛡️ Safe &amp; Secure</h3>
+          <div style="color:#878787;font-size:13px;line-height:1.9">
+            💵 Cash on Delivery available<br>
+            📱 UPI and Cards (online)<br>
+            ↩️ 7-day easy return
+          </div>
+          <button class="checkout-btn" onclick="placeOrder()">PLACE ORDER →</button>
+          <div class="secure">🔒 Your details are safe with us</div>
+        </div>
+      </aside>
+    </div>`;
+
+  startDealTimer($("#dealTimer"));
+  updateCartBadge();
+}
+
+function cartItemHTML(l) {
+  const p = l.p;
+  const seller = sellerOf(p);
+  return `
+  <div class="cart-item">
+    <a class="ci-img" style="background:${p.grad}" href="product.html?id=${p.id}">
+      <span class="fallback">${p.emoji}</span>${imgTag(p, 300)}
+    </a>
+    <div class="ci-info">
+      <h3><a href="product.html?id=${p.id}">${esc(p.title)}</a></h3>
+      <div class="ci-brand">${esc(seller.name)} • <span style="color:#388e3c">${stockLabel(p)}</span></div>
+      <div class="ci-price">
+        <span class="price">${inr(p.price)}</span>
+        <span class="mrp">${inr(p.mrp)}</span>
+        <span class="off">${discount(p)}% off</span>
+      </div>
+      <div class="ci-del">Delivery by <b>${p.delivery}</b> • Free delivery</div>
+      <div class="qty">
+        <button onclick="changeQty('${p.id}',${l.qty - 1})">−</button>
+        <span class="n">${l.qty}</span>
+        <button onclick="changeQty('${p.id}',${l.qty + 1})" ${l.qty >= 10 ? "disabled" : ""}>+</button>
+        <span style="font-size:12px;color:#878787;margin-left:6px">max 10</span>
+      </div>
+      <div class="ci-acts">
+        <button onclick="moveToWish('${p.id}')">❤️ MOVE TO WISHLIST</button>
+        <button class="rm" onclick="removeItem('${p.id}')">🗑️ REMOVE</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ---------- ADDRESS ---------- */
+function addressBox() {
+  const c = Checkout.get();
+  const u = Auth.user() || {};
+  return `
+  <div class="addr-box" style="margin-top:16px">
+    <h3>Delivery Address</h3>
+    <div class="field-grid">
+      <div class="field"><label for="dName">Full Name *</label>
+        <input id="dName" value="${esc(c.name || u.name || "")}" placeholder="Your full name"></div>
+      <div class="field"><label for="dPhone">Mobile Number *</label>
+        <input id="dPhone" value="${esc(c.phone || "")}" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric"></div>
+      <div class="field"><label for="dPin">Pincode *</label>
+        <input id="dPin" value="${esc(c.pincode || "")}" placeholder="6-digit pincode" maxlength="6" inputmode="numeric"></div>
+      <div class="field"><label for="dCity">City</label>
+        <input id="dCity" value="${esc(c.city || "")}" placeholder="City"></div>
+    </div>
+    <div class="field"><label for="dAddr">Full Address *</label>
+      <textarea id="dAddr" rows="2" placeholder="House number, street, area, landmark">${esc(c.address || "")}</textarea></div>
+    <div class="field" style="margin-bottom:0"><label for="dState">State</label>
+      <input id="dState" value="${esc(c.state || "")}" placeholder="State"></div>
+    <div class="cod-note">Keep your mobile number handy. Our delivery partner will call you before delivery.</div>
+  </div>`;
+}
+
+function readAddress() {
+  return {
+    name: $("#dName").value.trim(),
+    phone: $("#dPhone").value.replace(/\D/g, ""),
+    pincode: $("#dPin").value.replace(/\D/g, ""),
+    city: $("#dCity").value.trim(),
+    address: $("#dAddr").value.trim(),
+    state: $("#dState").value.trim(),
+  };
+}
+function validateAddress(a) {
+  if (a.name.length < 2) return "Please enter your full name.";
+  if (!/^[6-9]\d{9}$/.test(a.phone)) return "Please enter a valid 10-digit mobile number.";
+  if (!/^\d{6}$/.test(a.pincode)) return "Please enter a valid 6-digit pincode.";
+  if (a.address.length < 10) return "Please enter your complete address (at least 10 characters).";
+  if (a.city.length < 2) return "Please enter your city.";
+  return null;
+}
+
+/* ---------- PAYMENT ---------- */
+function paymentBox(t) {
+  const method = Checkout.get().method;
+  const codAllowed = COD.available(t.subTotal);
+  const codOn = COD.enabled();
+
+  return `
+  <label class="pay-option ${method === "cod" ? "active" : ""} ${codAllowed ? "" : "disabled"}"
+         onclick="${codAllowed ? "setMethod('cod')" : "toast('" + (codOn ? "Cash on Delivery is available up to ₹50,000 only" : "Cash on Delivery is switched off") + "')"}">
+    <input type="radio" name="pay" value="cod" ${method === "cod" ? "checked" : ""} ${codAllowed ? "" : "disabled"}>
+    <span class="po-body">
+      <span class="po-title">💵 Cash on Delivery ${t.codFee === 0 && codAllowed ? '<span class="po-tag">No extra fee</span>' : ""}</span>
+      <span class="po-sub">Pay in cash when your order reaches you. ${codAllowed ? "COD handling fee: " + (COD.feeFor(t.subTotal) ? inr(COD.feeFor(t.subTotal)) : "FREE for orders above ₹20,000") : "Not available for this order amount."}</span>
+    </span>
+  </label>
+
+  <label class="pay-option ${method === "online" ? "active" : ""}" onclick="setMethod('online');toast('Online payment is a demo in this version')">
+    <input type="radio" name="pay" value="online" ${method === "online" ? "checked" : ""}>
+    <span class="po-body">
+      <span class="po-title">💳 UPI / Credit Card / Net Banking</span>
+      <span class="po-sub">Pay now and get 5% cashback (max ₹500) on select cards. No handling fee.</span>
+    </span>
+  </label>
+
+  ${codOn ? "" : `<div class="cod-note">⚠️ Cash on Delivery is currently switched off by the admin. You can enable it from the Admin Panel.</div>`}
+  ${t.subTotal > COD.LIMIT ? `<div class="cod-note">⚠️ Cash on Delivery is available for orders up to ${inr(COD.LIMIT)} only. Please choose online payment.</div>` : ""}`;
+}
+
+function setMethod(m) {
+  const c = Checkout.get();
+  c.method = m;
+  const a = readAddress();
+  Object.assign(c, a);
+  Checkout.save(c);
+  render();
+}
+
+/* ---------- CART ACTIONS ---------- */
+function changeQty(id, qty) {
+  if (qty < 1) { toast("Minimum quantity is 1"); return; }
+  if (qty > 10) { toast("Maximum 10 pieces allowed"); return; }
+  const p = getProduct(id);
+  if (p && qty > p.stock) { toast(`Only ${p.stock} piece(s) available`); return; }
+  Store.setQty(id, qty);
+  render();
+}
+function removeItem(id) { Store.removeFromCart(id); toast("Item removed from cart"); render(); }
+function moveToWish(id) { Store.toggleWish(id); Store.removeFromCart(id); toast("Moved to wishlist"); render(); }
+
+function applyCoupon() {
+  const code = $("#couponInput").value.trim().toUpperCase();
+  if (!code) { toast("Please enter a coupon code"); return; }
+  const c = COUPONS[code];
+  const { subTotal } = totals();
+  if (!c) { toast("This coupon code is not valid"); return; }
+  if (subTotal < c.min) { toast(`Minimum order value is ₹${c.min} for this coupon`); return; }
+  appliedCoupon = code;
+  toast(`Coupon applied — ${c.label}`);
+  render();
+}
+function removeCoupon() { appliedCoupon = null; render(); }
+
+function ordersBlock() {
+  const o = Store.ordersLocal();
+  if (!o.length) return "";
+  return `<div style="padding:20px;border-top:1px solid #f0f0f0">
+    <h2 style="font-size:18px;font-weight:500;margin-bottom:14px">📦 Recent Orders</h2>
+    ${o.slice(0, 5).map(x => `
+      <div class="pline" style="border-bottom:1px dashed #eee;padding:10px 0">
+        <span><b>${esc(x.id || "")}</b> — ${orderItemCount(x)} item(s) • ${orderDate(x)}</span>
+        <span><b>${inr(x.total)}</b> ${statusPill(x.status || "Confirmed")}</span>
+      </div>`).join("")}
+    <a href="orders.html" class="btn-sm" style="display:inline-block;margin-top:12px">View all orders →</a>
+  </div>`;
+}
+
+/* ---------- PLACE ORDER ---------- */
+let pendingOrder = null;
+
+function placeOrder() {
+  const method = Checkout.get().method;
+  const t = totals(method === "cod");
+
+  if (!t.lines.length) { toast("Your cart is empty"); return; }
+  if (!Auth.isLoggedIn()) { location.href = "login.html?next=" + encodeURIComponent("cart.html"); return; }
+
+  /* check stock before ordering */
+  for (const l of t.lines) {
+    if (l.qty > l.p.stock) { toast(`Sorry, only ${l.p.stock} piece(s) of "${l.p.title.slice(0, 30)}..." available`); return; }
+  }
+
+  const addr = readAddress();
+  const problem = validateAddress(addr);
+  if (problem) {
+    toast(problem);
+    document.querySelector(".addr-box")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  const c = Checkout.get(); Object.assign(c, addr); Checkout.save(c);
+
+  if (method === "cod" && !COD.available(t.subTotal)) {
+    toast("Cash on Delivery is not available for this order. Please pay online.");
+    return;
+  }
+
+  if (method === "cod") {
+    window.__confirmCod = () => { finishCodOrder(t, addr); };
+    $("#overlay").classList.add("show");
+    $("#overlay").innerHTML = `
+      <div class="modal" style="text-align:left">
+        <h2 style="text-align:center">Confirm Cash on Delivery</h2>
+        <p style="text-align:center">Please check your order details before we ship it.</p>
+        <div class="order-id" style="text-align:center">${inr(t.grand)}</div>
+        <div style="background:#f7f9fc;border:1px solid #e3e9f2;border-radius:4px;padding:14px;font-size:13.5px;line-height:1.9">
+          <b>Deliver to</b><br>
+          ${esc(addr.name)} • ${esc(addr.phone)}<br>
+          ${esc(addr.address)}, ${esc(addr.city)} ${esc(addr.pincode)}${addr.state ? ", " + esc(addr.state) : ""}
+          <hr style="border:none;border-top:1px dashed #d5dce8;margin:10px 0">
+          <b>${t.lines.reduce((s, l) => s + l.qty, 0)} item(s)</b><br>
+          ${t.lines.map(l => `${esc(l.p.title.slice(0, 38))} × ${l.qty}`).join("<br>")}
+          <hr style="border:none;border-top:1px dashed #d5dce8;margin:10px 0">
+          ${t.couponOff ? `Coupon discount: − ${inr(t.couponOff)}<br>` : ""}
+          Platform fee: ${inr(t.platform)}<br>
+          COD handling fee: ${t.codFee ? inr(t.codFee) : "FREE"}
+        </div>
+        <div class="cod-note" style="text-align:center">💵 Please keep ${inr(t.grand)} ready in cash at the time of delivery.</div>
+        <div class="acts">
+          <button class="btn-blue" style="flex:1;background:#fff;color:#2874f0;border:1px solid #2874f0" onclick="closeOverlay()">Change Details</button>
+          <button class="btn-blue" style="flex:1" onclick="window.__confirmCod()">Confirm Order</button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  finishOrder(t, addr, "online");
+}
+function closeOverlay() { $("#overlay").classList.remove("show"); }
+
+function finishCodOrder(t, addr) {
+  closeOverlay();
+  finishOrder(t, addr, "cod");
+}
+
+function finishOrder(t, addr, method) {
+  pendingOrder = {
+    id: "SK" + Date.now().toString().slice(-8),
+    items: t.lines.map(l => ({ id: l.p.id, title: l.p.title, qty: l.qty, price: l.p.price })),
+    total: t.grand,
+    saved: t.saved,
+    coupon: appliedCoupon || null,
+    payment: method,
+    address: addr,
+    status: "Confirmed",
+    date: new Date().toISOString(),
+  };
+
+  const u = Auth.user();
+  const count = t.lines.reduce((s, l) => s + l.qty, 0);
+  const payLine = method === "cod"
+    ? `<p style="color:#8a5a00;font-weight:600">💵 Please keep ${inr(t.grand)} ready in cash.</p>`
+    : `<p style="color:#388e3c;font-weight:600">💳 Payment received successfully.</p>`;
+
+  $("#overlay").classList.add("show");
+  $("#overlay").innerHTML = `
+    <div class="modal">
+      <div class="tick">✓</div>
+      <h2>Order Placed Successfully!</h2>
+      <p>Thank you ${esc((u.name || "customer").split(" ")[0])}, your order is confirmed.</p>
+      <div class="order-id">Order ID: ${pendingOrder.id}</div>
+      <p>📦 ${count} item(s) • Total <b>${inr(t.grand)}</b></p>
+      ${payLine}
+      <p style="color:#878787;font-size:13px">Delivery in 2–4 days to ${esc(addr.city || addr.pincode)}</p>
+      <div class="acts">
+        <button class="btn-blue" style="flex:1" onclick="finishOrderDone('orders.html')">Track Order</button>
+        <button class="btn-blue" style="flex:1;background:#fff;color:#2874f0;border:1px solid #2874f0" onclick="finishOrderDone('index.html')">Keep Shopping</button>
+      </div>
+    </div>`;
+
+  Store.placeOrderOnServer(pendingOrder);
+}
+
+function finishOrderDone(dest) {
+  if (pendingOrder) { Store.addOrderLocal(pendingOrder); pendingOrder = null; }
+  Store.clearCart();
+  appliedCoupon = null;
+  closeOverlay();
+  toast("Order placed successfully");
+  setTimeout(() => location.href = dest || "index.html", 500);
+}
+
+/* ---------- INIT ---------- */
+render();
+
+// keep address typed so far when user clicks elsewhere
+document.addEventListener("input", e => {
+  if (["dName", "dPhone", "dPin", "dCity", "dAddr", "dState"].includes(e.target.id)) {
+    const c = Checkout.get();
+    Object.assign(c, readAddress());
+    Checkout.save(c);
+  }
+});
+
+if (new URLSearchParams(location.search).get("checkout") === "1" && Store.cart().length) {
+  setTimeout(() => {
+    document.querySelector(".addr-box")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 400);
+}
+</script>
+</body>
+</html>

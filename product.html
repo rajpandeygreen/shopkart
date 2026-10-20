@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Product – ShopKart</title>
+<link rel="stylesheet" href="style.css?v=20261020d">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="logo" href="index.html"><span class="name">Shop<b>Kart</b></span><span class="tag">Explore <i>✦</i> Plus</span></a>
+    <form class="search" id="searchForm">
+      <input id="searchInput" type="text" placeholder="Search for Products, Brands and More" autocomplete="off">
+      <div class="suggest" id="suggestBox" role="listbox" aria-label="Search suggestions"></div>
+      <button type="submit" title="Search">🔍</button>
+    </form>
+    <nav class="nav-links">
+      <button class="btn-login hide-sm" onclick="location.href='login.html'">Login</button>
+      <a href="seller.html" class="hide-sm">Become a Seller</a>
+      <a href="cart.html" title="Cart">🛒<span class="cart-badge" id="cartCount" style="display:none">0</span><span class="hide-sm"> Cart</span></a>
+      <a href="wishlist.html" title="Wishlist">❤️</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <nav class="crumb" id="crumb"></nav>
+  <section class="pdp" id="pdp"></section>
+
+  <section class="section">
+    <div class="sec-head"><div><h2>Ratings &amp; Reviews</h2><div class="sub" id="revSub"></div></div></div>
+    <div class="rev-wrap" id="revWrap"></div>
+  </section>
+
+  <section class="section">
+    <div class="sec-head"><div><h2>Similar Products</h2><div class="sub">More products in this category</div></div></div>
+    <div class="grid" id="similar"></div>
+  </section>
+</div>
+
+<footer>
+  <div class="fcols">
+    <div class="fcol"><h4>ABOUT</h4><a href="#">Contact Us</a><a href="#">About Us</a><a href="#">Careers</a></div>
+    <div class="fcol"><h4>HELP</h4><a href="#">Payments</a><a href="#">Shipping</a><a href="#">Cancellation &amp; Returns</a><a href="#">FAQ</a></div>
+    <div class="fcol"><h4>POLICY</h4><a href="#">Return Policy</a><a href="#">Terms of Use</a><a href="#">Privacy</a></div>
+    <div class="fcol"><h4>Mail Us:</h4><p>ShopKart Internet Pvt Ltd,<br>Bengaluru, KA 560103</p></div>
+  </div>
+  <div class="fbar"><div class="who"><div><span class="lbl">© 2026 ShopKart.com</span><span class="val">Made in India 🇮🇳</span></div></div>
+    <div class="pay"><span>💳 Cards</span><span>📱 UPI</span><span>💰 COD</span></div></div>
+</footer>
+
+<button id="backTop" title="Back to top">↑</button>
+
+<script src="data.js?v=20261020d"></script>
+<script src="search.js?v=20261020d"></script>
+<script src="app.js?v=20261020d"></script>
+<script>
+const id = new URLSearchParams(location.search).get("id");
+const p = getProduct(id) || PRODUCTS[0];
+let selectedVariant = 0;
+
+document.title = `${p.title} – ShopKart`;
+
+function renderPDP() {
+  $("#crumb").innerHTML =
+    `<a href="index.html">Home</a> › <a href="index.html?q=${p.category}">${p.category}</a> › ${p.title}`;
+
+  $("#pdp").innerHTML = `
+    <div class="gallery">
+      <div class="thumbs">
+        <div class="thumb active" onclick="pickShot(this,0)">
+          <span class="fallback">${p.emoji}</span>${imgTag(p, 200)}
+        </div>
+        <div class="thumb" onclick="pickShot(this,1)">
+          <span class="fallback">${p.emoji}</span>
+          <img src="${imgSrc(p, 400)}&fit=crop&crop=entropy" alt="" loading="lazy" onerror="this.style.display='none'">
+        </div>
+        <div class="thumb" style="background:${p.grad}" onclick="pickShot(this,2)">📦</div>
+      </div>
+      <div class="main-img" id="mainImg" style="background:#fff">
+        <span class="fallback" style="color:#212121;opacity:.35">${p.emoji}</span>
+        ${imgTag(p, 800)}
+      </div>
+    </div>
+    <div class="pdp-info">
+      <h1>${p.title}</h1>
+      <div class="pdp-brand">${p.brand} <span class="seller-chip" style="margin-left:8px">🏪 Sold by ${esc(sellerOf(p).name)}</span></div>
+      <div class="pdp-rating">
+        <span class="rating-badge">${p.rating} ★</span>
+        <span class="cnt">${p.ratings.toLocaleString("en-IN")} Ratings &amp; ${p.reviews.toLocaleString("en-IN")} Reviews</span>
+        ${p.assured ? '<span class="assured">✓ Assured</span>' : ""}
+      </div>
+      <div class="pdp-price">
+        <span class="price">${inr(p.price)}</span>
+        <span class="mrp">${inr(p.mrp)}</span>
+        <span class="off">${discount(p)}% off</span>
+      </div>
+      <div class="tax-note">+ ₹49 Secured Packaging Fee &nbsp;•&nbsp; Inclusive of all taxes</div>
+
+      <div class="offers">
+        <h4>🏷️ Available Offers</h4>
+        <li><b>Bank Offer</b> 10% off on ShopKart Axis Bank Credit Card, up to ₹1,500 on orders of ₹4,999+</li>
+        <li><b>Bank Offer</b> 5% cashback on ShopKart HDFC Debit Card</li>
+        <li><b>Coupon</b> Use code <b>SHOP10</b> and get 10% off (max ₹1,500)</li>
+        <li><b>No Cost EMI</b> from ₹${Math.round(p.price / 6).toLocaleString("en-IN")}/month. T&amp;C apply</li>
+        <li><b>Special Price</b> Get extra ${discount(p)}% off (price inclusive of cashback)</li>
+      </div>
+
+      <div class="variant-row">
+        <h4>Color / Variant</h4>
+        ${p.variants.map((v, i) => `<button class="variant-btn ${i === 0 ? "active" : ""}" onclick="pickVariant(this,${i})">${v}</button>`).join("")}
+      </div>
+
+      <div class="variant-row">
+        <h4>Delivery</h4>
+        <p style="font-size:14px">📍 Delivering to: <b>110001 Delhi</b> — <span style="color:#388e3c;font-weight:600">${p.delivery === "Today" ? "Free delivery Today by 9 PM" : "Free delivery by " + p.delivery}</span></p>
+        <p style="font-size:13px;color:#878787;margin-top:6px">50,000+ pin codes serviceable • Cash on Delivery available</p>
+      </div>
+
+      <h4 class="hl-title">Highlights</h4>
+      <ul class="hl-list">${p.highlights.map(h => `<li>${h}</li>`).join("")}</ul>
+
+      <h4 class="hl-title">Specifications</h4>
+      <ul class="spec-list">${Object.entries(p.specs).map(([k, v]) => `<li><b style="color:#878787">${k}:</b> ${v}</li>`).join("")}</ul>
+
+      <h4 class="hl-title">Description</h4>
+      <p style="font-size:14px;color:#444;margin-top:6px">${p.desc}</p>
+
+      <div class="pdp-actions">
+        <button class="btn btn-cart" onclick="Store.addToCart('${p.id}');toast('Added to cart','Go to Cart',()=>location.href='cart.html')">🛒 ADD TO CART</button>
+        <button class="btn btn-buy" onclick="Store.addToCart('${p.id}');goCheckout()">⚡ BUY NOW</button>
+      </div>
+    </div>`;
+
+  $("#revSub").textContent = `${p.ratings.toLocaleString("en-IN")} ratings • Based on genuine reviews`;
+  const dist = [78, 14, 4, 2, 2];
+  $("#revWrap").innerHTML = `
+    <div class="rev-avg">
+      <div class="num">${p.rating} <span style="font-size:22px;color:var(--orange)">★</span></div>
+      <div class="stars">${stars(p.rating)}</div>
+      <p>${p.ratings.toLocaleString("en-IN")} Ratings &amp; ${p.reviews.toLocaleString("en-IN")} Reviews</p>
+      <div style="margin-top:18px;text-align:left">
+        ${dist.map((v, i) => `<div class="bar-row"><span class="lbl">${5 - i} ★</span><span class="bar"><i style="width:${v}%"></i></span><span>${v}%</span></div>`).join("")}
+      </div>
+    </div>
+    <div>
+      ${REVIEWS.map(r => `
+        <div class="rev">
+          <div class="rev-head">
+            <div class="av">${r.user[0]}</div>
+            <div><div class="nm">${r.user}</div><div class="dt">${r.date}</div></div>
+            <span class="rating-badge" style="margin-left:auto">${r.stars} ★</span>
+          </div>
+          <p>${r.text}</p>
+          <div class="helpful">👍 ${r.helpful} people found this helpful</div>
+        </div>`).join("")}
+    </div>`;
+
+  const similar = PRODUCTS.filter(x => x.category === p.category && x.id !== p.id).slice(0, 4);
+  $("#similar").innerHTML = similar.map(x => productCard(x)).join("");
+}
+
+function pickShot(el, i) {
+  $$(".thumb").forEach(t => t.classList.remove("active"));
+  el.classList.add("active");
+  const m = $("#mainImg");
+  const shots = [
+    `<span class="fallback" style="color:#212121;opacity:.35">${p.emoji}</span>${imgTag(p, 800)}`,
+    `<span class="fallback" style="color:#212121;opacity:.35">${p.emoji}</span>
+     <img class="pimg-img" src="${imgSrc(p, 900)}&fit=crop&crop=entropy" alt="${esc(p.title)}"
+          style="object-fit:cover;padding:0" onerror="this.style.display='none'">`,
+    `<div class="fallback" style="flex-direction:column;font-size:96px">📦
+       <span style="font-size:14px;color:#666;margin-top:10px">What's in the box</span></div>`,
+  ];
+  m.style.background = i === 2 ? p.grad : "#fff";
+  m.innerHTML = shots[i];
+}
+function pickVariant(el, i) {
+  $$(".variant-btn").forEach(b => b.classList.remove("active"));
+  el.classList.add("active");
+  selectedVariant = i;
+  toast(`Selected: ${p.variants[i]}`);
+}
+
+renderPDP();
+</script>
+</body>
+</html>

@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Seller Partner – ShopKart</title>
+<link rel="stylesheet" href="style.css?v=20261020d">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏪</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="logo" href="index.html"><span class="name">Shop<b>Kart</b></span><span class="tag">Seller Partner</span></a>
+    <form class="search" id="searchForm">
+      <input id="searchInput" type="text" placeholder="Search for products, brands and more" autocomplete="off">
+      <div class="suggest" id="suggestBox" role="listbox" aria-label="Search suggestions"></div>
+      <button type="submit" title="Search">🔍</button>
+    </form>
+    <nav class="nav-links"></nav>
+  </div>
+</header>
+
+<main class="wrap" id="main"></main>
+<footer id="siteFooter"></footer>
+<div class="overlay" id="overlay"></div>
+
+<script src="data.js?v=20261020d"></script>
+<script src="search.js?v=20261020d"></script>
+<script src="app.js?v=20261020d"></script>
+<script>
+let SELLER_USER = null;
+let TAB = "dashboard";
+let SDATA = { stats: null, orders: [], products: [] };
+
+/* ================= ENTRY POINT ================= */
+(async function start() {
+  $("#main").innerHTML = `<div class="section" style="padding:40px;text-align:center;color:#878787">Loading…</div>`;
+  await API.init();
+  const u = Auth.user();
+
+  if (u && u.isSeller) { SELLER_USER = u; loadSellerPanel(); return; }
+  if (u && u.isAdmin) { renderAdminSellerNote(); return; }
+  renderLanding();
+})();
+
+function renderAdminSellerNote() {
+  $("#main").innerHTML = `
+    <div class="panel" style="margin-top:14px">
+      <aside class="side-nav">
+        <div class="sn-head"><b>Seller Centre</b><span>You are logged in as Admin</span></div>
+        <a class="active">🏪 Seller Home</a>
+        <a onclick="location.href='admin.html'">🛡️ Go to Admin Panel</a>
+        <a onclick="location.href='index.html'">🏠 Back to Shop</a>
+      </aside>
+      <section>
+        <div class="panel-card">
+          <div class="sec-head" style="padding:18px 20px"><div><h2 style="font-size:18px">You are logged in as Admin</h2>
+            <div class="sub">The seller dashboard needs a seller account.</div></div></div>
+          <div class="panel-body">
+            <p style="font-size:14px;line-height:1.8">Admin can approve sellers and edit every product, but seller payouts and dispatch controls belong to the seller account.</p>
+            <div class="cod-note">Demo seller login: <b>seller@shopkart.com</b> / <b>seller123</b></div>
+            <div style="margin-top:14px;display:flex;gap:12px;flex-wrap:wrap">
+              <button class="btn-sm primary" onclick="loginAsSeller()">Log in as Seller</button>
+              <button class="btn-sm" onclick="location.href='admin.html'">Open Admin Panel</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>`;
+}
+
+function loginAsSeller() {
+  localStorage.removeItem("shopkart_token");
+  localStorage.removeItem("shopkart_user");
+  location.href = "login.html?next=" + encodeURIComponent("seller.html");
+}
+
+/* ================= PUBLIC LANDING PAGE ================= */
+function renderLanding() {
+  $("#main").innerHTML = `
+    <section class="hero" style="background:linear-gradient(120deg,#0f3fa8 0%,#2874f0 55%,#4a9bff 100%)">
+      <div>
+        <h1>Become a ShopKart Seller 🏪</h1>
+        <p>Sell your products to crores of customers across India. No shop rent, no big setup — just your products and our delivery network.</p>
+        <button class="cta" onclick="document.getElementById('applyForm').scrollIntoView({behavior:'smooth'})">Apply Now →</button>
+      </div>
+      <div class="hero-art">📦</div>
+    </section>
+
+    <div class="benefit-strip">
+      <div class="benefit"><span class="bi">👥</span><div><b>50 Crore+ Customers</b><span>Sell all over India</span></div></div>
+      <div class="benefit"><span class="bi">🚚</span><div><b>Free Delivery Support</b><span>Pickup from your city</span></div></div>
+      <div class="benefit"><span class="bi">💰</span><div><b>Weekly Payments</b><span>Money straight to your bank</span></div></div>
+      <div class="benefit"><span class="bi">📊</span><div><b>Easy Dashboard</b><span>Track orders and stock daily</span></div></div>
+    </div>
+
+    <section class="section" id="plans">
+      <div class="sec-head"><div><h2>Seller Plans</h2><div class="sub">Choose a plan that suits your business</div></div></div>
+      <div class="panel-body">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px">
+          ${[
+            { name: "Starter", fee: "₹0", commission: "14%", perks: ["Sell up to 100 products", "Standard delivery", "Email support", "Good for new sellers"] },
+            { name: "Growth", fee: "₹999/month", commission: "10%", perks: ["Unlimited products", "Faster delivery slot", "Phone support", "Basic ads credits"], best: true },
+            { name: "Premium", fee: "₹2,999/month", commission: "6%", perks: ["Unlimited products", "Top search placement", "Dedicated manager", "Free product photography"] },
+          ].map(p => `
+            <div class="panel-card" style="margin:0;border:${p.best ? "2px solid #2874f0" : "1px solid #eee"}">
+              ${p.best ? '<div style="background:#2874f0;color:#fff;font-size:11.5px;font-weight:700;padding:5px;text-align:center;letter-spacing:.5px">MOST POPULAR</div>' : ""}
+              <div class="panel-body">
+                <h3 style="font-size:18px;margin-bottom:4px">${p.name}</h3>
+                <div style="font-size:24px;font-weight:700;color:#2874f0">${p.fee}</div>
+                <div style="font-size:13px;color:#878787;margin-bottom:14px">+ ${p.commission} commission per sale</div>
+                <ul style="list-style:none;font-size:13.5px;line-height:2.1">
+                  ${p.perks.map(x => `<li>✅ ${x}</li>`).join("")}
+                </ul>
+                <button class="btn-blue" style="width:100%;margin-top:14px" onclick="document.getElementById('applyForm').scrollIntoView({behavior:'smooth'})">Choose ${p.name}</button>
+              </div>
+            </div>`).join("")}
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="sec-head"><div><h2>How It Works</h2><div class="sub">Start selling in 4 easy steps</div></div></div>
+      <div class="panel-body" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px">
+        ${[
+          ["1️⃣", "Register", "Fill the application form with your business details."],
+          ["2️⃣", "Verification", "Our team checks your GSTIN and bank details in 2 working days."],
+          ["3️⃣", "List Products", "Add your products with photos and prices."],
+          ["4️⃣", "Start Selling", "Orders come in, we pick up and deliver. You get paid weekly."],
+        ].map(([ic, t, d]) => `
+          <div style="text-align:center">
+            <div style="font-size:36px">${ic}</div>
+            <b style="display:block;margin:8px 0 4px;font-size:15px">${t}</b>
+            <span style="font-size:13.5px;color:#878787;line-height:1.6">${d}</span>
+          </div>`).join("")}
+      </div>
+    </section>
+
+    <section class="section" id="applyForm">
+      <div class="sec-head"><div><h2>Seller Application</h2><div class="sub">Takes 2 minutes to fill</div></div></div>
+      <div class="panel-body">
+        <div id="applyAlert" class="auth-alert"></div>
+        <div class="field-grid">
+          <div class="field"><label for="aName">Your Full Name *</label><input id="aName" placeholder="Example: Ramesh Kumar"></div>
+          <div class="field"><label for="aBusiness">Business / Shop Name *</label><input id="aBusiness" placeholder="Example: Kumar Electronics"></div>
+          <div class="field"><label for="aEmail">Email Address *</label><input id="aEmail" type="email" placeholder="you@example.com"></div>
+          <div class="field"><label for="aPhone">Mobile Number *</label><input id="aPhone" placeholder="10-digit mobile number" maxlength="10"></div>
+          <div class="field"><label for="aGstin">GSTIN (optional)</label><input id="aGstin" placeholder="Example: 29AABCS1234K1Z5" style="text-transform:uppercase"></div>
+          <div class="field"><label for="aCity">City *</label><input id="aCity" placeholder="Example: Bengaluru"></div>
+        </div>
+        <div class="field"><label for="aCategory">What will you sell? *</label>
+          <select id="aCategory" style="width:100%;border:1px solid #d9d9d9;border-radius:3px;padding:11px 13px;font-size:14.5px">
+            ${CATEGORIES.map(c => `<option value="${c.name}">${c.emoji} ${c.name}</option>`).join("")}
+          </select>
+        </div>
+        <button class="checkout-btn" onclick="submitApplication()">SUBMIT APPLICATION</button>
+        <p style="font-size:12.5px;color:#878787;margin-top:12px;text-align:center">Our team will contact you within 2 working days. By applying you agree to ShopKart's seller terms.</p>
+      </div>
+    </section>
+
+    <section class="section" id="login">
+      <div class="sec-head"><div><h2>Already a Seller?</h2><div class="sub">Log in to your seller dashboard</div></div></div>
+      <div class="panel-body" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+        <button class="btn-blue" onclick="location.href='login.html?next='+encodeURIComponent('seller.html')">Seller Login</button>
+        <span style="font-size:13.5px;color:#878787">Demo seller account: <b>seller@shopkart.com</b> / <b>seller123</b></span>
+      </div>
+    </section>`;
+}
+
+function showApply(msg, ok) {
+  const a = $("#applyAlert");
+  a.textContent = msg;
+  a.classList.add("show");
+  a.classList.toggle("ok", !!ok);
+  a.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+async function submitApplication() {
+  const body = {
+    name: $("#aName").value.trim(),
+    business: $("#aBusiness").value.trim(),
+    email: $("#aEmail").value.trim(),
+    phone: $("#aPhone").value.trim(),
+    gstin: $("#aGstin").value.trim(),
+    city: $("#aCity").value.trim(),
+    category: $("#aCategory").value,
+  };
+
+  if (body.name.length < 2) return showApply("Please enter your full name.");
+  if (body.business.length < 2) return showApply("Please enter your business name.");
+  if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(body.email)) return showApply("Please enter a valid email address.");
+  if (!/^[6-9]\d{9}$/.test(body.phone.replace(/\D/g, ""))) return showApply("Please enter a valid 10-digit mobile number.");
+  if (body.city.length < 2) return showApply("Please enter your city.");
+
+  if (!API.online) {
+    showApply("Server is not running, so your application was not saved. Please start the server (node server.js) and try again.");
+    return;
+  }
+
+  try {
+    const d = await API.req("POST", "/api/seller-application", body);
+    showApply(`✅ Application received! Your reference number is ${d.id}. ${d.message}`, true);
+    ["aName", "aBusiness", "aEmail", "aPhone", "aGstin", "aCity"].forEach(id => { const el = $("#" + id); if (el) el.value = ""; });
+  } catch (e) {
+    showApply(e.message);
+  }
+}
+
+/* ================= SELLER PANEL ================= */
+async function loadSellerPanel() {
+  try {
+    const [stats, orders, products] = await Promise.all([
+      API.req("GET", "/api/seller/stats"),
+      API.req("GET", "/api/seller/orders"),
+      API.req("GET", "/api/seller/products"),
+    ]);
+    SDATA.stats = stats;
+    SDATA.orders = orders.orders;
+    SDATA.products = products.products.filter(p => p.seller === SELLER_USER.sellerId);
+  } catch (e) {
+    $("#main").innerHTML = `<div class="section empty"><div class="ic">🔌</div>
+      <h2>Could not load your dashboard</h2><p>${esc(e.message)}</p>
+      <a class="btn-blue" href="index.html">Back to Home</a></div>`;
+    return;
+  }
+  renderSellerPanel();
+}
+
+function renderSellerPanel() {
+  const s = SDATA.stats.seller;
+  $("#main").innerHTML = `
+    <div class="page-title">
+      <h1>🏪 ${esc(s.name)} — Seller Dashboard</h1>
+      <p>${esc(s.city)} • Commission ${s.commission}% • Seller ID ${esc(s.id)}</p>
+    </div>
+    <div class="panel">
+      <aside class="side-nav">
+        <div class="sn-head"><b>${esc(s.name)}</b><span>${esc(SELLER_USER.email)}</span></div>
+        <a class="${TAB === "dashboard" ? "active" : ""}" onclick="sgo('dashboard')">📊 Dashboard</a>
+        <a class="${TAB === "orders" ? "active" : ""}" onclick="sgo('orders')">📦 My Orders</a>
+        <a class="${TAB === "products" ? "active" : ""}" onclick="sgo('products')">🏷️ My Products</a>
+        <a class="${TAB === "payments" ? "active" : ""}" onclick="sgo('payments')">💰 Payments</a>
+        <a onclick="location.href='index.html'">🏠 View Shop</a>
+      </aside>
+      <section id="tabContent"></section>
+    </div>`;
+
+  const views = { dashboard: viewSDashboard, orders: viewSOrders, products: viewSProducts, payments: viewSPayments };
+  views[TAB]();
+}
+
+function sgo(t) { TAB = t; renderSellerPanel(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+
+function viewSDashboard() {
+  const k = SDATA.stats.kpis;
+  const s = SDATA.stats.seller || SELLER_USER || {};
+  const pending = SDATA.orders.filter(o => ["Confirmed", "Packed"].includes(o.status));
+  const lowStock = SDATA.products.filter(p => p.stock <= 20);
+
+  $("#tabContent").innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><span class="ki" style="background:#e8f0ff">💰</span>
+        <div><b>${inr(k.sales)}</b><span>Total Sales</span><small>${k.units} units sold</small></div></div>
+      <div class="kpi"><span class="ki" style="background:#e6f4ea">🏦</span>
+        <div><b>${inr(k.payout)}</b><span>Your Payout</span><small>after ${inr(k.commission)} commission</small></div></div>
+      <div class="kpi"><span class="ki" style="background:#fff7e0">📦</span>
+        <div><b>${k.orders}</b><span>My Orders</span><small>${k.pending} need packing</small></div></div>
+      <div class="kpi"><span class="ki" style="background:#f3e5f5">🏷️</span>
+        <div><b>${k.products}</b><span>My Products</span><small>${k.lowStock} low stock</small></div></div>
+    </div>
+
+    ${pending.length ? `
+    <div class="panel-card">
+      <div class="sec-head" style="padding:16px 20px;background:#fff7e0">
+        <div><h2 style="font-size:16px">⚡ Orders waiting for you</h2><div class="sub">Pack these orders as early as possible</div></div>
+        <button class="btn-sm primary" onclick="sgo('orders')">Open Orders</button>
+      </div>
+      <div class="tbl-wrap">
+        <table class="data">
+          <thead><tr><th>Order</th><th>Customer</th><th>Items</th><th>Status</th><th>Update</th></tr></thead>
+          <tbody>
+            ${pending.slice(0, 5).map(o => `
+              <tr>
+                <td><b>${esc(o.id)}</b><div style="font-size:12px;color:#878787">${orderDate(o)}</div></td>
+                <td>${esc(o.customer || "—")}</td>
+                <td>${o.items.reduce((s, i) => s + i.qty, 0)}</td>
+                <td>${statusPill(o.status)}</td>
+                <td><button class="btn-sm primary" onclick="markPacked('${esc(o.id)}')">Mark as Packed</button></td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>` : ""}
+
+    ${lowStock.length ? `
+    <div class="panel-card">
+      <div class="sec-head" style="padding:16px 20px"><div><h2 style="font-size:16px">⚠️ Low Stock Alert</h2>
+        <div class="sub">Please add stock soon</div></div>
+        <button class="btn-sm" onclick="sgo('products')">Update Stock</button></div>
+      <div class="tbl-wrap">
+        <table class="data">
+          <thead><tr><th>Product</th><th style="text-align:right">Price</th><th style="text-align:right">Stock</th><th>Action</th></tr></thead>
+          <tbody>
+            ${lowStock.map(p => `<tr>
+              <td><div class="td-prod">
+                <div class="mini-thumb" style="background:${p.grad}"><span>${p.emoji}</span>${imgTag(p, 150)}</div>
+                <div><b>${esc(p.title)}</b><span>${esc(p.brand)}</span></div></div></td>
+              <td class="num">${inr(p.price)}</td>
+              <td class="num">${p.stock === 0 ? '<span class="badge-off">Out of stock</span>' : `<span class="badge-warn">${p.stock} left</span>`}</td>
+              <td><button class="btn-sm primary" onclick="editSProduct('${p.id}')">Add Stock</button></td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>` : ""}
+
+    <div class="panel-card">
+      <div class="sec-head" style="padding:16px 20px"><div><h2 style="font-size:16px">Seller Rating</h2>
+        <div class="sub">Average of customer reviews</div></div></div>
+      <div class="panel-body">
+        <div class="prof-row"><span>Overall rating</span><b><span class="star-mini">${stars(s.rating)}</span> ${s.rating} / 5</b></div>
+        <div class="prof-row"><span>Dispatch time</span><b>${s.shipDays} day(s)</b></div>
+        <div class="prof-row"><span>Return rate</span><b>${s.returnRate}%</b></div>
+        <div class="prof-row"><span>Selling since</span><b>${s.since}</b></div>
+      </div>
+    </div>`;
+}
+
+function viewSOrders() {
+  $("#tabContent").innerHTML = `
+    <div class="panel-card">
+      <div class="sec-head" style="padding:16px 20px">
+        <div><h2 style="font-size:17px">My Orders</h2><div class="sub">${SDATA.orders.length} order(s) for your products</div></div>
+        <button class="btn-sm" onclick="loadSellerPanel()">🔄 Refresh</button>
+      </div>
+      <div class="tbl-wrap">
+        <table class="data" style="min-width:820px">
+          <thead><tr><th>Order</th><th>Customer</th><th>My Items</th><th>Payment</th><th style="text-align:right">My Amount</th><th>Status</th><th>Update Status</th></tr></thead>
+          <tbody>
+            ${SDATA.orders.map(o => {
+              const mine = o.items.reduce((s, i) => s + i.price * i.qty, 0);
+              return `<tr>
+                <td><b>${esc(o.id)}</b><div style="font-size:12px;color:#878787">${orderDate(o)}</div></td>
+                <td>${esc(o.customer || "—")}
+                  <div style="font-size:12px;color:#878787">${esc((o.address && o.address.city) || "")}</div></td>
+                <td>${o.items.map(i => `<div style="font-size:12.5px">${esc(String(i.title).slice(0, 28))} <b>× ${i.qty}</b></div>`).join("")}</td>
+                <td>${o.payment === "cod" ? '<span class="badge-warn">💵 COD</span>' : '<span class="badge-ok">💳 Paid</span>'}</td>
+                <td class="num">${inr(mine)}</td>
+                <td>${statusPill(o.status)}</td>
+                <td>${["Delivered", "Cancelled"].includes(o.status)
+                  ? '<span style="font-size:12.5px;color:#878787">Closed</span>'
+                  : `<select class="status-sel" onchange="setSellerStatus('${esc(o.id)}', this.value, this)">
+                       ${["Confirmed", "Packed", "Shipped", "Out for Delivery", "Delivered"].map(st =>
+                         `<option value="${st}" ${o.status === st ? "selected" : ""}>${st}</option>`).join("")}
+                     </select>`}</td>
+              </tr>`;
+            }).join("") || `<tr><td colspan="7" class="empty-state"><div class="ic">📦</div><h3>No orders yet</h3><p>New orders will appear here.</p></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+async function setSellerStatus(id, status, el) {
+  el.disabled = true;
+  try {
+    await API.req("POST", "/api/seller/order-status", { id, status });
+    const o = SDATA.orders.find(x => x.id === id);
+    if (o) o.status = status;
+    toast(`Order ${id} marked as "${status}"`);
+    renderSellerPanel();
+  } catch (e) { toast(e.message); el.disabled = false; }
+}
+async function markPacked(id) { setSellerStatus(id, "Packed", { disabled: false }); }
+
+function viewSProducts() {
+  $("#tabContent").innerHTML = `
+    <div class="panel-card">
+      <div class="sec-head" style="padding:16px 20px">
+        <div><h2 style="font-size:17px">My Products</h2><div class="sub">${SDATA.products.length} product(s) listed by you</div></div>
+      </div>
+      <div class="tbl-wrap">
+        <table class="data" style="min-width:780px">
+          <thead><tr><th>Product</th><th style="text-align:right">MRP</th><th style="text-align:right">My Price</th><th style="text-align:right">Stock</th><th style="text-align:right">I Earn</th><th>Action</th></tr></thead>
+          <tbody>
+            ${SDATA.products.map(p => {
+              const earn = p.price - Math.round(p.price * SDATA.stats.seller.commission / 100);
+              return `<tr>
+                <td><div class="td-prod">
+                  <div class="mini-thumb" style="background:${p.grad}"><span>${p.emoji}</span>${imgTag(p, 150)}</div>
+                  <div><b>${esc(p.title)}</b><span>${esc(p.brand)} • ${esc(p.category)}</span></div></div></td>
+                <td class="num" style="color:#878787;font-weight:400">${inr(p.mrp)}</td>
+                <td class="num">${inr(p.price)}</td>
+                <td class="num">${p.stock === 0 ? '<span class="badge-off">Out of stock</span>' : p.stock <= 20 ? `<span class="badge-warn">${p.stock}</span>` : `<span class="badge-ok">${p.stock}</span>`}</td>
+                <td class="num">${inr(earn)}<div style="font-size:12px;color:#878787;font-weight:400">after ${SDATA.stats.seller.commission}%</div></td>
+                <td><button class="btn-sm primary" onclick="editSProduct('${p.id}')">Edit</button></td>
+              </tr>`;
+            }).join("") || `<tr><td colspan="6" class="empty-state"><div class="ic">🏷️</div><h3>No products yet</h3></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function editSProduct(id) {
+  const p = SDATA.products.find(x => x.id === id);
+  if (!p) return;
+  $("#overlay").classList.add("show");
+  $("#overlay").innerHTML = `
+    <div class="modal" style="text-align:left">
+      <h2 style="text-align:center">Update Product</h2>
+      <div style="display:flex;gap:12px;align-items:center;margin:14px 0;background:#f7f9fc;padding:12px;border-radius:4px">
+        <div class="mini-thumb" style="background:${p.grad};width:52px;height:52px"><span>${p.emoji}</span></div>
+        <div style="font-size:13.5px"><b>${esc(p.title.slice(0, 58))}</b>
+          <div style="color:#878787">MRP ${inr(p.mrp)} • Commission ${SDATA.stats.seller.commission}%</div></div>
+      </div>
+      <div class="field-grid">
+        <div class="field"><label>My Selling Price (₹)</label><input id="spPrice" type="number" min="1" max="${p.mrp}" value="${p.price}"></div>
+        <div class="field"><label>Stock Quantity</label><input id="spStock" type="number" min="0" value="${p.stock}"></div>
+      </div>
+      <div class="cod-note">You cannot sell above MRP (${inr(p.mrp)}). Your earning is shown after ${SDATA.stats.seller.commission}% ShopKart commission.</div>
+      <div class="acts">
+        <button class="btn-blue" style="flex:1;background:#fff;color:#2874f0;border:1px solid #2874f0" onclick="closeSOverlay()">Cancel</button>
+        <button class="btn-blue" style="flex:1" onclick="saveSProduct('${p.id}')">Save</button>
+      </div>
+    </div>`;
+}
+function closeSOverlay() { $("#overlay").classList.remove("show"); }
+
+async function saveSProduct(id) {
+  try {
+    const d = await API.req("PUT", "/api/seller/product", { id, price: $("#spPrice").value, stock: $("#spStock").value });
+    const i = SDATA.products.findIndex(x => x.id === id);
+    if (i > -1) SDATA.products[i] = d.product;
+    closeSOverlay();
+    toast("Product updated successfully");
+    loadSellerPanel();
+  } catch (e) { toast(e.message); }
+}
+
+function viewSPayments() {
+  const k = SDATA.stats.kpis;
+  const rate = SDATA.stats.seller.commission;
+  const rows = SDATA.orders.filter(o => o.status !== "Cancelled");
+  const codPending = rows.filter(o => o.payment === "cod" && o.status !== "Delivered")
+    .reduce((s, o) => s + o.items.reduce((x, i) => x + i.price * i.qty, 0), 0);
+
+  $("#tabContent").innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><span class="ki" style="background:#e8f0ff">💰</span>
+        <div><b>${inr(k.sales)}</b><span>Gross Sales</span><small>before commission</small></div></div>
+      <div class="kpi"><span class="ki" style="background:#fdecea">🧾</span>
+        <div><b>− ${inr(k.commission)}</b><span>ShopKart Commission</span><small>${rate}% per sale</small></div></div>
+      <div class="kpi"><span class="ki" style="background:#e6f4ea">🏦</span>
+        <div><b>${inr(k.payout)}</b><span>Net Payout</span><small>credits to your bank</small></div></div>
+      <div class="kpi"><span class="ki" style="background:#fff7e0">💵</span>
+        <div><b>${inr(codPending)}</b><span>COD in Transit</span><small>paid after delivery</small></div></div>
+    </div>
+
+    <div class="panel-card">
+      <div class="sec-head" style="padding:16px 20px"><div><h2 style="font-size:17px">Payment Summary</h2>
+        <div class="sub">How your payout is calculated</div></div></div>
+      <div class="panel-body">
+        <div class="prof-row"><span>Total sales (all products)</span><b>${inr(k.sales)}</b></div>
+        <div class="prof-row"><span>ShopKart commission (${rate}%)</span><b style="color:#e53935">− ${inr(k.commission)}</b></div>
+        <div class="prof-row"><span>Net payout to you</span><b style="color:#388e3c">${inr(k.payout)}</b></div>
+        <div class="prof-row"><span>Payout cycle</span><b>Every Tuesday</b></div>
+        <div class="prof-row"><span>Minimum payout</span><b>₹500</b></div>
+        <div class="cod-note">Cash on Delivery orders are settled after successful delivery. Online paid orders are settled in the next payout cycle.</div>
+      </div>
+    </div>
+
+    <div class="panel-card">
+      <div class="sec-head" style="padding:16px 20px"><div><h2 style="font-size:17px">Order-wise Earnings</h2></div></div>
+      <div class="tbl-wrap">
+        <table class="data">
+          <thead><tr><th>Order</th><th>Date</th><th style="text-align:right">Sale</th><th style="text-align:right">Commission</th><th style="text-align:right">You Earn</th><th>Status</th></tr></thead>
+          <tbody>
+            ${rows.map(o => {
+              const mine = o.items.reduce((s, i) => s + i.price * i.qty, 0);
+              const comm = Math.round(mine * rate / 100);
+              return `<tr>
+                <td><b>${esc(o.id)}</b></td>
+                <td style="font-size:12.5px;color:#878787">${orderDate(o)}</td>
+                <td class="num">${inr(mine)}</td>
+                <td class="num" style="color:#e53935">− ${inr(comm)}</td>
+                <td class="num" style="color:#388e3c">${inr(mine - comm)}</td>
+                <td>${statusPill(o.status)}</td>
+              </tr>`;
+            }).join("") || `<tr><td colspan="6" class="empty-state"><div class="ic">💰</div><h3>No earnings yet</h3><p>Your earnings will show here after your first order.</p></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+</script>
+</body>
+</html>

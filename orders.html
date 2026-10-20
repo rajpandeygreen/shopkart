@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My Orders – ShopKart</title>
+<link rel="stylesheet" href="style.css?v=20261020d">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="logo" href="index.html"><span class="name">Shop<b>Kart</b></span><span class="tag">Explore <i>✦</i> Plus</span></a>
+    <form class="search" id="searchForm">
+      <input id="searchInput" type="text" placeholder="Search for products, brands and more" autocomplete="off">
+      <div class="suggest" id="suggestBox" role="listbox" aria-label="Search suggestions"></div>
+      <button type="submit" title="Search">🔍</button>
+    </form>
+    <nav class="nav-links"></nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="page-title">
+    <h1>My Orders</h1>
+    <p id="ordersSub">Track your orders and see delivery status</p>
+  </div>
+  <div id="ordersWrap"></div>
+</main>
+
+<footer id="siteFooter"></footer>
+
+<script src="data.js?v=20261020d"></script>
+<script src="search.js?v=20261020d"></script>
+<script src="app.js?v=20261020d"></script>
+<script>
+if (!Auth.require("orders.html")) {
+  // redirected to login
+} else {
+  init();
+}
+
+async function init() {
+  $("#ordersWrap").innerHTML = `<div class="section" style="padding:40px;text-align:center;color:#878787">Loading your orders…</div>`;
+  const orders = await Store.orders();
+
+  if (!orders.length) {
+    $("#ordersWrap").innerHTML = `
+      <div class="section empty">
+        <div class="ic">📦</div>
+        <h2>You have no orders yet</h2>
+        <p>Once you place an order, you can track it from here.</p>
+        <a class="btn-blue" href="index.html">Start Shopping</a>
+      </div>`;
+    return;
+  }
+
+  $("#ordersSub").textContent = `${orders.length} order${orders.length > 1 ? "s" : ""} found`;
+  $("#ordersWrap").innerHTML = orders.map(orderCard).join("");
+}
+
+const FLOW = ["Confirmed", "Packed", "Shipped", "Out for Delivery", "Delivered"];
+
+function trackSteps(status) {
+  if (status === "Cancelled") {
+    return `<div class="cod-note" style="margin-top:12px">❌ This order was cancelled. Any payment made will be refunded in 3–5 working days.</div>`;
+  }
+  const idx = FLOW.indexOf(status);
+  const icons = ["✅", "📦", "🚚", "🛵", "🏠"];
+  return `<div class="track-steps">
+    ${FLOW.map((s, i) => `
+      <div class="tstep ${i < idx ? "done" : ""} ${i === idx ? "current" : ""}">
+        <div class="dot2">${i <= idx ? icons[i] : i + 1}</div>
+        <span>${s}</span>
+      </div>`).join("")}
+  </div>`;
+}
+
+function orderCard(o) {
+  const items = Array.isArray(o.items) ? o.items : [];
+  const sellerNames = [...new Set(items.map(i => {
+    const p = getProduct(i.id); return p ? sellerOf(p).name : "";
+  }).filter(Boolean))];
+
+  return `
+  <div class="order-card">
+    <div class="order-head">
+      <span>Order ID: <b>${esc(o.id || "—")}</b></span>
+      <span>Placed on: <b>${orderDate(o)}</b></span>
+      <span>${paymentLabel(o.payment)}</span>
+      ${statusPill(o.status || "Confirmed")}
+    </div>
+
+    <div class="order-body">
+      ${items.length ? items.map(it => {
+        const p = getProduct(it.id);
+        return `<div class="order-line">
+          <div class="oimg" style="background:${p ? p.grad : "#f5f5f5"}">
+            ${p ? `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">${p.emoji}</span>${imgTag(p, 200)}` : "📦"}
+          </div>
+          <div class="oinfo">
+            <b>${esc(it.title || (p && p.title) || "Product")}</b>
+            <span>${it.qty} × ${inr(it.price)}${p ? " • Sold by " + esc(sellerOf(p).name) : ""}</span>
+          </div>
+          <div style="font-weight:600">${inr((it.price || 0) * (it.qty || 1))}</div>
+        </div>`;
+      }).join("") : `<div style="font-size:13.5px;color:#878787">Item details are not available.</div>`}
+    </div>
+
+    <div class="panel-body" style="padding:6px 18px 18px">
+      ${trackSteps(o.status || "Confirmed")}
+    </div>
+
+    <div class="order-foot">
+      <div>
+        Order Total: <b>${inr(o.total)}</b>
+        ${o.saved ? `<span style="color:#388e3c;font-size:12.5px;margin-left:8px">You saved ${inr(o.saved)}</span>` : ""}
+        ${o.address ? `<div style="font-size:12.5px;color:#878787;margin-top:4px">Delivering to ${esc(o.address.name || "")}, ${esc(o.address.city || "")} ${esc(o.address.pincode || "")}${o.payment === "cod" ? " • Cash on Delivery" : ""}</div>` : ""}
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${items.length ? `<button onclick="buyAgain('${esc(o.id)}')">Buy Again</button>` : ""}
+        ${["Confirmed", "Packed"].includes(o.status || "Confirmed")
+          ? `<button class="rem" style="color:#e53935;border-color:#f2c3c1" onclick="cancelOrder('${esc(o.id)}')">Cancel Order</button>` : ""}
+        <button onclick="showInvoice('${esc(o.id)}')">View Details</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function buyAgain(orderId) {
+  const orders = await Store.orders();
+  const o = orders.find(x => x.id === orderId);
+  if (!o || !Array.isArray(o.items)) { toast("Items not found"); return; }
+  o.items.forEach(it => { if (getProduct(it.id)) Store.addToCart(it.id, it.qty || 1); });
+  toast("Items added to cart", "Go to Cart", () => location.href = "cart.html");
+}
+
+async function cancelOrder(orderId) {
+  const ok = confirm("Do you want to cancel this order?");
+  if (!ok) return;
+  if (API.online && Auth.isLoggedIn()) {
+    try {
+      await API.req("POST", "/api/orders/cancel", { id: orderId });
+      toast("Order cancelled");
+      init();
+      return;
+    } catch (e) { console.warn(e.message); }
+  }
+  const list = Store.ordersLocal();
+  const o = list.find(x => x.id === orderId);
+  if (o) { o.status = "Cancelled"; localStorage.setItem("shopkart_orders", JSON.stringify(list)); }
+  toast("Order cancelled");
+  init();
+}
+
+async function showInvoice(orderId) {
+  const orders = await Store.orders();
+  const o = orders.find(x => x.id === orderId);
+  if (!o) return;
+  const items = Array.isArray(o.items) ? o.items : [];
+  const a = o.address || {};
+  $("#overlay") || document.body.insertAdjacentHTML("beforeend", `<div class="overlay" id="overlay"></div>`);
+  $("#overlay").classList.add("show");
+  $("#overlay").innerHTML = `
+    <div class="modal" style="text-align:left;max-width:520px">
+      <h2 style="text-align:center">Order Details</h2>
+      <div class="order-id" style="text-align:center">${esc(o.id)}</div>
+      <div style="font-size:13.5px;line-height:1.9;background:#f7f9fc;border:1px solid #e3e9f2;border-radius:4px;padding:14px">
+        <b>Status:</b> ${esc(o.status || "Confirmed")}<br>
+        <b>Order date:</b> ${orderDate(o)}<br>
+        <b>Payment:</b> ${paymentLabel(o.payment)}<br>
+        ${a.name ? `<b>Delivery address:</b><br>${esc(a.name)}, ${esc(a.phone || "")}<br>${esc(a.address || "")}, ${esc(a.city || "")} ${esc(a.pincode || "")}<br>` : ""}
+      </div>
+      <table class="data" style="min-width:auto;margin-top:14px">
+        <thead><tr><th>Item</th><th>Qty</th><th style="text-align:right">Amount</th></tr></thead>
+        <tbody>
+          ${items.map(i => `<tr><td>${esc(i.title || i.id)}</td><td>${i.qty}</td><td class="num">${inr(i.price * i.qty)}</td></tr>`).join("")}
+        </tbody>
+      </table>
+      <div class="total" style="font-size:17px"><span>Total</span><span>${inr(o.total)}</span></div>
+      <div class="acts"><button class="btn-blue" style="flex:1" onclick="closeOverlay2()">Close</button></div>
+    </div>`;
+}
+function closeOverlay2() { const o = $("#overlay"); if (o) o.classList.remove("show"); }
+</script>
+</body>
+</html>

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ShopKart.com – India's Smart Online Shopping Destination</title>
+<link rel="stylesheet" href="style.css?v=20261020d">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="topbar">
+  <div class="wrap">
+    <a class="logo" href="index.html">
+      <span class="name">Shop<b>Kart</b></span>
+      <span class="tag">Explore <i>✦</i> Plus</span>
+    </a>
+    <form class="search" id="searchForm">
+      <input id="searchInput" type="text" placeholder="Search for Products, Brands and More" autocomplete="off">
+      <div class="suggest" id="suggestBox" role="listbox" aria-label="Search suggestions"></div>
+      <button type="submit" title="Search">🔍</button>
+    </form>
+    <nav class="nav-links">
+      <button class="btn-login hide-sm" onclick="location.href='login.html'">Login</button>
+      <a href="seller.html" class="hide-sm">Become a Seller</a>
+      <a href="#" class="hide-sm" onclick="toast('More options coming soon!');return false">More ▾</a>
+      <a href="cart.html" title="Cart">🛒<span class="cart-badge" id="cartCount" style="display:none">0</span><span class="hide-sm"> Cart</span></a>
+      <a href="wishlist.html" title="Wishlist">❤️</a>
+    </nav>
+  </div>
+</header>
+
+<!-- CATEGORY STRIP -->
+<div class="cat-strip">
+  <div class="wrap" id="catStrip"></div>
+</div>
+
+<main class="wrap">
+
+  <!-- HERO (search ke time hide) -->
+  <section class="hero" id="hero">
+    <div>
+      <h1>Mega Diwali Sale is LIVE 🎉</h1>
+      <p>Mobiles, Fashion, Electronics &amp; Home par <b>up to 80% off</b> + Extra 10% off with coupon <b>SHOP10</b>. Limited period offer!</p>
+      <button class="cta" onclick="document.getElementById('deals').scrollIntoView({behavior:'smooth'})">Shop Now →</button>
+    </div>
+    <div class="hero-art">🛍️</div>
+  </section>
+
+  <!-- SEARCH RESULTS VIEW -->
+  <section id="resultsSection" style="display:none">
+    <div class="section">
+      <div class="sec-head">
+        <div>
+          <h2 id="resultsTitle">Search Results</h2>
+          <div class="sub" id="resultsCount"></div>
+        </div>
+      </div>
+      <div class="toolbar">
+        <button class="chip" data-sort="popularity" onclick="setSort(this)">Popularity</button>
+        <button class="chip" data-sort="priceLow" onclick="setSort(this)">Price ↓</button>
+        <button class="chip" data-sort="priceHigh" onclick="setSort(this)">Price ↑</button>
+        <button class="chip" data-sort="discount" onclick="setSort(this)">Discount</button>
+        <button class="chip" data-sort="rating" onclick="setSort(this)">Rating</button>
+      </div>
+      <div class="grid wide" id="resultsGrid"></div>
+      <div class="empty" id="noResults" style="display:none">
+        <div class="ic">🔍</div>
+        <h2>No products found</h2>
+        <p>Try searching for: mobile, laptop, shirt, speaker, perfume, atta</p>
+        <a class="btn-blue" href="index.html">Back to Home</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOME VIEW -->
+  <div id="homeView">
+
+    <!-- benefits -->
+    <div class="benefit-strip">
+      <div class="benefit"><span class="bi">🚚</span><div><b>Free Delivery</b><span>On orders above ₹499</span></div></div>
+      <div class="benefit"><span class="bi">↩️</span><div><b>7 Day Replacement</b><span>No questions asked, easy return</span></div></div>
+      <div class="benefit"><span class="bi">🔒</span><div><b>Secure Payments</b><span>UPI, Cards, COD &amp; EMI</span></div></div>
+      <div class="benefit"><span class="bi">🎧</span><div><b>24x7 Support</b><span>An answer to every question</span></div></div>
+    </div>
+
+    <!-- deals of the day -->
+    <section class="section" id="deals">
+      <div class="sec-head">
+        <div><h2>Deals of the Day</h2><div class="sub">Best prices, limited time</div></div>
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+          <div class="deal-timer" id="dealTimer"></div>
+          <button class="link-btn" onclick="location.href='index.html?q='">View All</button>
+        </div>
+      </div>
+      <div class="grid" id="dealsGrid"></div>
+    </section>
+
+    <!-- top picks horizontal -->
+    <section class="section">
+      <div class="sec-head">
+        <div><h2>Top Picks For You</h2><div class="sub">Trending across India</div></div>
+        <button class="link-btn" onclick="location.href='index.html?q='">View All</button>
+      </div>
+      <div class="hscroll" id="trendingScroll"></div>
+    </section>
+
+    <!-- bestsellers -->
+    <section class="section">
+      <div class="sec-head">
+        <div><h2>Bestsellers</h2><div class="sub">Most loved products</div></div>
+      </div>
+      <div class="grid" id="bestGrid"></div>
+    </section>
+
+    <!-- categories -->
+    <section class="section">
+      <div class="sec-head"><div><h2>Top Categories</h2><div class="sub">Pick your favourite category</div></div></div>
+      <div class="hscroll" id="catScroll"></div>
+    </section>
+
+    <!-- latest -->
+    <section class="section">
+      <div class="sec-head"><div><h2>Just Launched</h2><div class="sub">Naye products, naye offers</div></div></div>
+      <div class="grid" id="newGrid"></div>
+    </section>
+
+  </div>
+</main>
+
+<!-- FOOTER (filled by app.js) -->
+<footer id="siteFooter"></footer>
+
+<button id="backTop" title="Back to top">↑</button>
+<div class="overlay" id="overlay"></div>
+
+<script src="data.js?v=20261020d"></script>
+<script src="search.js?v=20261020d"></script>
+<script src="app.js?v=20261020d"></script>
+<script>
+/* ---------- STATE ---------- */
+let currentSort = "popularity";
+
+/* ---------- CATEGORY STRIP ---------- */
+function renderCats() {
+  $("#catStrip").innerHTML = CATEGORIES.map(c => `
+    <div class="cat-item" onclick="location.href='index.html?q=${encodeURIComponent(c.id)}'">
+      <div class="cat-ico" style="background:${c.grad}">${c.emoji}</div>
+      <span>${c.name}</span>
+    </div>`).join("");
+
+  $("#catScroll").innerHTML = CATEGORIES.map(c => {
+    const items = PRODUCTS.filter(p => p.category === c.id);
+    const p = items[0];
+    return `<div class="pcard" onclick="location.href='index.html?q=${encodeURIComponent(c.id)}'">
+      <div class="pimg" style="background:${c.grad};height:150px;font-size:70px">${c.emoji}</div>
+      <div class="pname" style="min-height:auto;font-weight:600">${c.name}</div>
+      <div class="free-ship">${items.length}+ products</div>
+      <div style="color:#2874f0;font-weight:600;font-size:13px">Shop now →</div>
+    </div>`;
+  }).join("");
+}
+
+/* ---------- HOME SECTIONS ---------- */
+function renderHome() {
+  const byTag = t => PRODUCTS.filter(p => p.tags?.includes(t));
+  $("#dealsGrid").innerHTML = byTag("deal").slice(0, 8).map(p => productCard(p)).join("");
+  $("#bestGrid").innerHTML = byTag("bestseller").slice(0, 8).map(p => productCard(p)).join("");
+  $("#newGrid").innerHTML  = byTag("new").slice(0, 8).map(p => productCard(p)).join("");
+  $("#trendingScroll").innerHTML = byTag("trending").map(p => productCard(p)).join("");
+  startDealTimer($("#dealTimer"));
+}
+
+/* ---------- SEARCH ---------- */
+function sortProducts(list, sort) {
+  const c = [...list];
+  switch (sort) {
+    case "priceLow":  return c.sort((a, b) => a.price - b.price);
+    case "priceHigh": return c.sort((a, b) => b.price - a.price);
+    case "discount":  return c.sort((a, b) => discount(b) - discount(a));
+    case "rating":    return c.sort((a, b) => b.rating - a.rating);
+    default:          return c.sort((a, b) => b.ratings - a.ratings);
+  }
+}
+function setSort(btn) {
+  currentSort = btn.dataset.sort;
+  $$(".toolbar .chip").forEach(c => c.classList.toggle("active", c === btn));
+  runSearch(new URLSearchParams(location.search).get("q") || "");
+}
+function matches(p, q) {
+  /* Multi-language search: "मोबाइल", "மொபைல்", "ফোন" all work. */
+  return SmartSearch.searchMatches(p, q, CATEGORIES);
+}
+function runSearch(q) {
+  const list = sortProducts(PRODUCTS.filter(p => matches(p, q)), currentSort);
+  $("#resultsSection").style.display = "block";
+  $("#homeView").style.display = "none";
+  $("#hero").style.display = "none";
+  $("#resultsTitle").textContent = q ? `Results for "${q}"` : "All Products";
+  $("#resultsCount").textContent = list.length + " product(s) found";
+  $("#noResults").style.display = list.length ? "none" : "block";
+  $("#resultsGrid").innerHTML = list.map(p => productCard(p)).join("");
+}
+
+/* ---------- INIT ---------- */
+renderCats();
+const query = new URLSearchParams(location.search).get("q");
+if (query) runSearch(query); else renderHome();
+</script>
+</body>
+</html>
